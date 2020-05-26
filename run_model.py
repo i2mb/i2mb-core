@@ -21,7 +21,7 @@ from masskrug.worlds.g_pylons import GravityPylons
 
 CM = rcParams["axes.prop_cycle"].by_key()['color']
 LEGEND_LABELS = [u.name for u in UserStates]
-NUM_FRAMES = 200
+NUM_FRAMES = 60 * 12 * 30
 NUM_PARTICLES = 300
 LENGTH = 50
 HEIGHT = 50
@@ -93,7 +93,7 @@ def update(frame):
     r_c = covid.r_current()
     r_text.set_text(f"R: {r_c:0.2}")
     points = covid.get_totals()
-    order = [UserStates.infected, UserStates.asymptomatic, UserStates.susceptible,
+    order = [UserStates.infected, UserStates.asymptomatic, UserStates.incubation, UserStates.susceptible,
              UserStates.immune, UserStates.deceased]
     for d, t in zip(data, order):
         d.append(points[t])
@@ -139,30 +139,34 @@ if __name__ == "__main__":
     world = SquareWorld(WORLD_BOX, population)
     motion = RandomMotion(world, population, step_size=0.5, )
     g_pylons = GravityPylons(beacons=BEACONS, population=population, world=world,
-                             radius=1, gain=100)
+                             radius=1, gain=10)
 
     # Contact tracing model
-    c_tracing = ContactTracing(radius=2, population=population, duration=3,
-                               track_time=30,
+    c_tracing = ContactTracing(radius=2, population=population, duration=15,
+                               track_time=60 * 12 * 30 / 4,
                                coverage=1,
                                false_positives=0,
                                false_negatives=0
                                )
 
     # Deceased duration distribution
-    dd = partial(np.random.normal, 30, 3)
+    dd = partial(np.random.normal, 14 * 12 * 60 / 4, 3 * 60 / 4 * 12)
+    id = partial(np.random.normal, 14 * 12 * 60 / 4, 10 * 60 / 4 * 12)
 
     # Deceased model
-    covid = CoronaVirus(radius=2, exposure_time=4, population=population,
+    covid = CoronaVirus(radius=2, exposure_time=2, population=population,
+                        asymptomatic_p=0.4,
                         death_rate=(0.01, 0.5),
                         duration_distribution=dd,
+                        incubation_distribution=id,
                         icu_beds=10)
 
-    ct_intervention = ContactTracingIntervention(delay=12, population=population,
+    ct_intervention = ContactTracingIntervention(delay=10, population=population,
                                                  world=world)
 
     # engine = Engine([c_tracing, covid, ct_intervention, motion])
-    engine = Engine([c_tracing, covid, NM, g_pylons, motion])
+    # engine = Engine([c_tracing, covid, NM, g_pylons, motion])
+    engine = Engine([c_tracing, covid, NM, NM, motion])
 
     # Init plots
     pos_gen = engine.step()
@@ -174,10 +178,10 @@ if __name__ == "__main__":
     r_lines = ax2.plot([0], [[0, 0, 0]])
     r_text = ax.text(1.02, 0.02, "R", transform=ax.transAxes)
     contacts_list = []
-    ani = FuncAnimation(ax.get_figure(), update, frames=NUM_FRAMES, interval=100, repeat=False,
+    ani = FuncAnimation(ax.get_figure(), update, frames=NUM_FRAMES, interval=1, repeat=False,
                         init_func=init, blit=False)
 
-    plt.show()
+    plt.show(block=True)
 
     engine.finalize()
 

@@ -7,8 +7,13 @@ class UserStates(enum.IntEnum):
     susceptible = 0
     immune = 1
     deceased = 2
-    asymptomatic = 3
-    infected = 4
+    incubation = 3
+    asymptomatic = 4
+    infected = 5
+
+    @staticmethod
+    def contagious():
+        return UserStates.asymptomatic, UserStates.infected
 
 
 class SymptomLevels(enum.IntEnum):

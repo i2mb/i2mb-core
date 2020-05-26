@@ -24,10 +24,12 @@ class CoronaVirus(Pathogen):
 
     def __init__(self, radius, exposure_time, population: ParticleList,
                  duration_distribution=None,
+                 incubation_distribution=None,
                  asymptomatic_p=0.01,
                  death_rate=None,
                  icu_beds=None):
 
+        self.incubation_distribution = incubation_distribution
         self.radius = radius
         self.exposure_time = exposure_time
         self.population = population
@@ -55,8 +57,11 @@ class CoronaVirus(Pathogen):
         self.states = np.ones(shape) * UserStates.susceptible
         self.symptom_levels = np.ones(shape) * SymptomLevels.not_sick
         self.duration_infection = np.zeros(shape)
+        self.incubation_period = np.zeros(shape)
         self.time_of_infection = np.zeros(shape)
         self.particles_infected = np.zeros(shape)
+        self.outcomes = np.zeros(shape)
+        self.particle_type = np.zeros(shape)
         self.contacts = []
         for p in population:
             self.contacts.append(ContactList())
@@ -64,25 +69,33 @@ class CoronaVirus(Pathogen):
         population.add_property("state", self.states)
         population.add_property("symptom_level", self.symptom_levels)
         population.add_property("duration_infection", self.duration_infection)
+        population.add_property("incubation_period", self.incubation_period)
         population.add_property("time_of_infection", self.time_of_infection)
         population.add_property("particles_infected", self.particles_infected)
-
-        self.outcome = {}
+        population.add_property("particle_type", self.particle_type)
+        population.add_property("outcome", self.outcomes)
 
     def introduce_pathogen(self, num_p0s, t, asymptomatic=None):
-        state = UserStates.infected
+        susceptible = self.population.state == UserStates.susceptible
+        num_p0s = len(susceptible) >= num_p0s and num_p0s or len(susceptible)
+        ids = np.random.choice(range(len(susceptible)), num_p0s, replace=False)
+        self.infect_particles(ids, t, asymptomatic)
+
+    def infect_particles(self, infected, t, asymptomatic=None):
+        num_p0s = len(infected)
+        infectious_state = np.ones(num_p0s) * UserStates.infected
         if isinstance(asymptomatic, float):
             if asymptomatic <= 1:
-                state = np.random.choice([UserStates.infected, UserStates.asymptomatic], num_p0s,
-                                         p=[1 - asymptomatic, asymptomatic])
+                infectious_state = np.random.choice([UserStates.infected, UserStates.asymptomatic], num_p0s,
+                                                    p=[1 - asymptomatic, asymptomatic])
             else:
                 # We understand numbers greater than one as the number of asymptomatic particles.
                 asymptomatic = int(asymptomatic)
 
         elif isinstance(asymptomatic, bool):
             if asymptomatic:
-                state = np.random.choice([UserStates.infected, UserStates.asymptomatic], num_p0s,
-                                         p=[1 - asymptomatic, self.asymptomatic_p])
+                infectious_state = np.random.choice([UserStates.infected, UserStates.asymptomatic], num_p0s,
+                                                    p=[1 - self.asymptomatic_p, self.asymptomatic_p])
 
         elif asymptomatic is not None and not isinstance(asymptomatic, int):
             raise TypeError(f"asymptomatic is of unexpected type '{type(asymptomatic)}'. The expected types are int, "
@@ -90,21 +103,44 @@ class CoronaVirus(Pathogen):
 
         if isinstance(asymptomatic, int):
             assert asymptomatic <= num_p0s, "asymptomatic must be less than the number of num_p0s"
-            state = np.ones(num_p0s) * UserStates.infected
-            state[:asymptomatic] = UserStates.asymptomatic
+            infectious_state[:asymptomatic] = UserStates.asymptomatic
 
         severity = np.random.choice(range(len(SymptomLevels) - 1), num_p0s, )
-        infected = np.random.choice(range(len(self.population)), num_p0s)
-        self.states[infected, 0] = state
+        self.states[infected, 0] = np.ones(num_p0s) * UserStates.incubation
+        self.particle_type[infected, 0] = infectious_state
         self.symptom_levels[infected, 0] = severity
         self.duration_infection[infected, 0] = self.duration_distribution(size=num_p0s)
+        self.incubation_period[infected, 0] = self.incubation_distribution(size=num_p0s)
         self.time_of_infection[infected, 0] = t
-        outcomes = np.random.choice([UserStates.immune, UserStates.deceased],
-                                    size=num_p0s,
-                                    p=[1 - self.death_rate, self.death_rate])
+        self.outcomes[infected, 0] = np.random.choice([UserStates.immune, UserStates.deceased],
+                                                      size=num_p0s,
+                                                      p=[1 - self.death_rate, self.death_rate])
 
-        for i, o in zip(infected, outcomes):
-            self.outcome[i] = o
+    def update_states(self, t):
+        # Update everyone's status
+        # Particles that change state from incubation to infection
+        active = self.states == UserStates.incubation
+        infectious = (self.incubation_period +
+                      self.time_of_infection) <= t
+        self.states[active & infectious] = self.particle_type[active & infectious]
+
+        # Particles that have gone through the decease.
+        active = ((self.states == UserStates.asymptomatic) |
+                  (self.states == UserStates.infected))
+        through = (self.duration_infection +
+                   self.incubation_period +
+                   self.time_of_infection) <= t
+        self.states[active & through] = self.outcomes[active & through]
+
+        # Freeze the deceased.
+        deceased = self.states == UserStates.deceased
+        self.population.motion_mask[deceased] = False
+
+        # Update the death rate
+        self.death_rate = self.__death_rate
+        if ((self.symptom_levels[active] == SymptomLevels.severe).any() and self.icu_beds is not None and
+                sum(self.symptom_levels[active] == SymptomLevels.severe) > self.icu_beds):
+            self.death_rate = self.__death_rate_icu
 
     @cache_manager
     def distances(self):
@@ -139,57 +175,44 @@ class CoronaVirus(Pathogen):
         self.death_rate = dr
 
     def step(self, t):
-        # Update everyone's status
-        active = (self.states == UserStates.asymptomatic) | (self.states == UserStates.infected)
-        candidates = active & ((self.time_of_infection * -1) + t > self.duration_infection)
-        for id_ in np.where(candidates)[0]:
-            self.states[id_][0] = self.outcome[id_]
-            if self.states[id_] == UserStates.deceased:
-                self.population[id_].motion_mask[:] = False
+        self.update_states(t)
+        infection_mask = (self.states == UserStates.infected) | (self.states == UserStates.asymptomatic)
+        if not infection_mask.any():
+            return self.states, self.symptom_levels, 0
 
         distances = self.distances()
-        contacts = np.argwhere(distances <= self.radius)
-        contacts = contacts[contacts[:, 0] != contacts[:, 1], :]
-        ids = set(contacts[:, 0])
-        infected = 0
-        new_infections = {}
+        particles_in_proximity = distances <= self.radius
+        np.fill_diagonal(particles_in_proximity, False)
+        infection_mask = (self.states == UserStates.infected) | (self.states == UserStates.asymptomatic)
+        infection_mask = np.tile(infection_mask, len(self.states))
+        susceptible = np.tile((self.states == UserStates.susceptible).T, (len(self.states), 1))
+        exposed = particles_in_proximity & infection_mask & susceptible
+        if hasattr(self.population, "isolated"):
+            ids = np.argwhere((exposed.sum(axis=0) > 0) & ~self.population.isolated[:, 0]).ravel()
+        else:
+            ids = np.argwhere(exposed.sum(axis=0) > 0).ravel()
+
+        sufficient_contact = np.zeros((len(self.population), len(self.population)), dtype=bool)
+        contacts = np.argwhere(exposed)
         for id_ in ids:
-            if not self.states[id_] == UserStates.susceptible:
-                continue
-
-            if hasattr(self.population[id_], "isolated") and self.population[id_].isolated:
-                continue
-
-            contact_ids = contacts[contacts[:, 0] == id_, 1]
+            contact_ids = contacts[contacts[:, 1] == id_, 0]
             self.contacts[id_].update(contact_ids, t, use_last=True)
             sc_idx = np.array([c_id for c_id, e in self.contacts[id_].contacts.items()
                                if e.current >= self.exposure_time], dtype=int)
 
-            sufficient_contact = np.zeros((len(self.population), 1), dtype=bool)
-            sufficient_contact[sc_idx] = True
+            sufficient_contact[sc_idx, id_] = True
 
-            infectious = (sufficient_contact &
-                          ((self.states == UserStates.asymptomatic) |
-                           (self.states == UserStates.infected))
-                          ).ravel()
-            if sum(sufficient_contact) > 0 and any(infectious):
-                infected += 1
-                new_infections[id_] = np.random.choice([UserStates.asymptomatic, UserStates.infected])
-                if new_infections[id_] == UserStates.infected:
-                    self.symptom_levels[id_] = np.random.choice(list(SymptomLevels)[2:])
-                else:
-                    self.symptom_levels[id_] = SymptomLevels.no_symptoms
+        new_infections = exposed & sufficient_contact
+        num_infected_contacts = new_infections.sum(axis=0)
+        new_infections_ids = np.argwhere(num_infected_contacts).ravel()
+        if len(new_infections_ids) == 0:
+            return self.states, self.symptom_levels, 0
 
-                self.duration_infection[id_] = self.duration_distribution()
-                self.time_of_infection[id_] = t
-                dr = self.__death_rate
-                if (self.symptom_levels[id_] == SymptomLevels.severe and self.icu_beds is not None and
-                        sum(self.symptom_levels == SymptomLevels.severe) > self.icu_beds):
-                    dr = self.__death_rate_icu
-
-                self.outcome[id_] = np.random.choice([UserStates.immune, UserStates.deceased], p=[1 - dr, dr])
-                self.particles_infected[infectious, 0] = self.particles_infected[infectious, 0] + (1 / sum(infectious))
-
-        self.states[list(new_infections.keys()), 0] = list(new_infections.values())
-
+        self.infect_particles(new_infections_ids, t)
+        infection_vectors = (new_infections[:, num_infected_contacts != 0] /
+                             num_infected_contacts[num_infected_contacts != 0]).sum(axis=1)
+        self.particles_infected[infection_vectors > 0, 0] = (self.particles_infected[infection_vectors > 0, 0] +
+                                                             infection_vectors[infection_vectors > 0])
+        self.infect_particles(new_infections_ids, t, True)
+        infected = len(new_infections_ids)
         return self.states, self.symptom_levels, infected
