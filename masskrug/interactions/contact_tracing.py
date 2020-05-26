@@ -7,31 +7,32 @@ from .contact_list import ContactList
 
 
 class ContactTracing(Interaction):
+    """
+    Base implementation of technology based contact tracing in a particle population. This module adds the property
+    `contact_list` to the population ParticleList.
+
+    :param radius: Distance between particles to consider a valid contact.
+    :type radius: int
+    :param population: Particle population.
+    :type population: ParticleList
+    :param track_time: Measured in steps, track_time represents the time to consider a connection valid.
+    :type track_time: int, optional
+    :param duration: Measured in steps, duration is the minimal length of time required to consider recording a
+     contact, defaults to 1 sample.
+    :param coverage: Percentage of the population that will keep track of their contacts. Particles that will track
+     coverage are selected at random.
+    :param false_positives: Rate of false positives. This parameter simulates the possibility of the underlying
+     technology to emmit a false positive. The model uses the area between an outer radius and the `radius`
+     parameter to select false positive particles. The outer radius is calculated using the `radius` parameter and
+     the `fp_radius` parameter.
+    :param false_negatives: Rate of false negatives. This parameter simulates the possibility of hte underlying
+     technology failing to record a valid connection.
+    :param fp_radius: Percentage of radius use to consider false positives, defaults to 0.2
+    """
+
     def __init__(self, radius, population, track_time=None, duration=1,
                  coverage=1., false_positives=0, false_negatives=0, fp_radius=.02):
-        """
-        Base implementation of technology based contact tracing in a particle population. This module adds the
-         property `contact_list` to the population ParticleList.
 
-        :param radius: Distance between particles to consider a valid contact.
-        :type radius: int
-        :param population: Particle population.
-        :type population: ParticleList
-        :param track_time: Measured in steps, track_time represents the time to consider a connection valid.
-        :type track_time: int, optional
-        :param duration: Measured in steps, duration is the minimal length of time required to consider recording a
-         contact, defaults to 1 sample.
-        :param coverage: Percentage of the population that will keep track of their contacts. Particles that will track
-         coverage are selected at random.
-        :param false_positives: Rate of false positives. This parameter simulates the possibility of the underlying
-         technology to emmit a false positive. The model uses the area between an outer radius and the `radius`
-         parameter to select false positive particles. The outer radius is calculated using the `radius` parameter and
-         the `fp_radius` parameter.
-        :param false_negatives: Rate of false negatives. This parameter simulates the possibility of hte underlying
-         technology failing to record a valid connection.
-        :param fp_radius: Percentage of radius use to consider false positives, defaults to 0.2
-
-        """
         self.fp_radius = fp_radius
         self.false_negatives = false_negatives
         self.false_positives = false_positives

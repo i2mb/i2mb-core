@@ -10,6 +10,18 @@ from .base_pathogen import Pathogen, SymptomLevels, UserStates
 
 
 class CoronaVirus(Pathogen):
+    """
+    :param radius:
+    :param exposure_time:
+    :param incubation_distribution: Time between exposure and symptom onset, during this time the individual has
+      the virus, but is not infectious.
+    :type incubation_distribution: int, distribution
+    :param population:
+    :param asymptomatic_p:
+    :param death_rate:
+    :param icu_beds:
+    """
+
     def __init__(self, radius, exposure_time, population: ParticleList,
                  duration_distribution=None,
                  asymptomatic_p=0.01,

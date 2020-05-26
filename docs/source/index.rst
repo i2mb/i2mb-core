@@ -26,3 +26,6 @@ Interaction definition
 .. autoclass:: masskrug.interactions.contact_tracing.ContactTracing
    :members:
 
+.. autoclass:: masskrug.pathogen.infection.CoronaVirus
+   :members:
+
