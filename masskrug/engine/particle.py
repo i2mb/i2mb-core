@@ -19,6 +19,29 @@ class ParticleList:
 
         self.__particles = [Particle(id_) for id_ in self.index]
 
+        # Flag to speed up processing
+        self.__updated = True
+        self.__update_time = None
+        self.__current_time = True
+
+    def set_time(self, t):
+        self.__current_time = t
+
+    @property
+    def updated(self):
+        if self.__current_time == self.__update_time:
+            return not self.__updated
+
+        return self.__updated
+
+    @updated.setter
+    def updated(self, v):
+        if self.__current_time == self.__update_time:
+            # Prevent switching off the update flag if another module already changed it to True.
+            self.__updated |= v
+        else:
+            self.__updated = v
+
     def __len__(self):
         return self.__len
 
@@ -32,6 +55,8 @@ class ParticleList:
 
     def add_property(self, prop, values):
         object.__setattr__(self, prop, values)
+
+        # If values is an numpy array, we want to keep a pointer.
         for p, v in zip(self.__particles, values):
             object.__setattr__(p, prop, v)
 
@@ -43,3 +68,4 @@ class Particle:
     @property
     def id(self):
         return self.__id
+

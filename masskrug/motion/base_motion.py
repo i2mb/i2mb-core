@@ -11,6 +11,9 @@ class Motion(Model):
         population.add_property("motion_mask", self.motion_mask)
 
     def step(self, t):
+        if not self.population.updated:
+            return self.positions
+
         self.update_positions(t)
         self.check_limits(t)
         return self.positions
