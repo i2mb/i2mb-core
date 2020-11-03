@@ -3,6 +3,7 @@ from functools import partial
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib import rcParams
 from matplotlib.animation import FuncAnimation
 from matplotlib.lines import Line2D
@@ -10,28 +11,24 @@ from matplotlib.patches import Rectangle
 
 from masskrug.engine.core import Engine
 from masskrug.interactions.contact_tracing import ContactTracing
-from masskrug.interventions.contact_tracing import ContactTracingIntervention
+from masskrug.interventions.contact_isolation import ContactIsolationIntervention
 from masskrug import NullModel as NM
 from masskrug.engine.particle import ParticleList
 from masskrug.motion.random_motion import RandomMotion
 from masskrug.pathogen.base_pathogen import UserStates
 from masskrug.pathogen.infection import CoronaVirus
 from masskrug.worlds import SquareWorld
+from masskrug.worlds.composite_world import CompositeWorld
 from masskrug.worlds.g_pylons import GravityPylons
 
 CM = rcParams["axes.prop_cycle"].by_key()['color']
 LEGEND_LABELS = [u.name for u in UserStates]
-NUM_FRAMES = 60 * 12 * 30
-NUM_PARTICLES = 300
-LENGTH = 50
-HEIGHT = 50
-WORLD_BOX = (LENGTH, HEIGHT)
-
-BEACONS = np.array([[LENGTH / 6, HEIGHT / 6],
-                    [LENGTH / 6, HEIGHT / 6 * 5],
-                    [LENGTH / 2, HEIGHT / 2],
-                    [LENGTH / 6 * 5, HEIGHT / 6],
-                    [LENGTH / 6 * 5, HEIGHT / 6 * 5]])
+LEGEND_LABELS = ["Susceptibles",
+                 "Inmunes",
+                 "Fallecidos",
+                 "En Incubación",
+                 "Sin síntomas",
+                 "Infecciosos"]
 
 
 def legend():
@@ -52,8 +49,9 @@ def legend():
 
 
 def init():
-    ax.set_xlim(-5, world.get_full_dims()[0] + 5)
-    ax.set_ylim(-5, world.get_full_dims()[1] + 5)
+    ax.set_xlim(-5, world.dims()[0] + 5)
+    ax.set_ylim(-5, world.dims()[1] + 5)
+    ax.set_aspect("equal")
     ax.add_patch(Rectangle((0, 0), *WORLD_BOX, fill=False, linewidth=1.2))
     w = world.containment[1]
     ax.add_patch(Rectangle(world.containment[:2], w, w, fill=False, linewidth=1.2))
@@ -61,9 +59,13 @@ def init():
     ax1.set_xlim(0, NUM_FRAMES)
     ax1.set_ylim(0, NUM_PARTICLES)
 
+    density = 5 * TIME_SCALAR
+    for x in range(1, int(NUM_FRAMES / density) + 1):
+        ax1.axvline(x * density, color="k", alpha=0.5)
+
     ax2.set_xlim(0, NUM_FRAMES)
     ax2.set_ylim(0, 2)
-    ax2.set_xlabel("Time")
+    ax2.set_xlabel("Tiempo")
     ax2.legend(["R", "Rrt"])
     bb = ax.get_position()
     # bb.y0 -= 0.2
@@ -85,7 +87,7 @@ def init():
 
 def update(frame):
     ct, cv, cti, gp, positions = next(pos_gen)
-    state, sl, ni = cv
+    state, sl, pi, ni = cv
     scat.set_offsets(positions)
     if frame == 5:
         covid.introduce_pathogen(1, frame)
@@ -117,11 +119,30 @@ def update(frame):
 
     artists = list(lines) + list(r_lines) + [scat, r_text]
     ax2.set_ylim(0, max(r_data[0]) * 1.1)
+
+    if frame % 100 == 0:
+        print(covid.waves)
+        print(ct_intervention.num_isolations.ravel())
+        print(ct_intervention.isolated_fp.ravel())
+
     return artists
 
 
 if __name__ == "__main__":
+    TIME_SCALAR = 8 * 24
+    NUM_FRAMES = int(180 * TIME_SCALAR)
+    NUM_PARTICLES = 300
+    LENGTH = 50
+    HEIGHT = 50
+    WORLD_BOX = (LENGTH, HEIGHT)
+
+    BEACONS = np.array([[LENGTH / 6, HEIGHT / 6],
+                        [LENGTH / 6, HEIGHT / 6 * 5],
+                        [LENGTH / 2, HEIGHT / 2],
+                        [LENGTH / 6 * 5, HEIGHT / 6],
+                        [LENGTH / 6 * 5, HEIGHT / 6 * 5]])
     fig, axs = plt.subplots(3, 1)
+    ax: plt.Axes
     ax, ax1, ax2 = axs
 
     # pos_gen = random_walk(1., 50, (100, 50))
@@ -136,43 +157,49 @@ if __name__ == "__main__":
     # Setup engine models
     population = ParticleList(NUM_PARTICLES)
 
-    world = SquareWorld(WORLD_BOX, population)
+    # world = SquareWorld(WORLD_BOX, population)
+    # world = SquareWorld(WORLD_BOX, population)
+    isolation = CompositeWorld((LENGTH / 2, HEIGHT / 2), origin=[LENGTH * 1.5, HEIGHT / 4])
+    roaming_area = CompositeWorld(WORLD_BOX)
+    world = CompositeWorld(WORLD_BOX, population, regions=[roaming_area, isolation])
+
     motion = RandomMotion(world, population, step_size=0.5, )
     g_pylons = GravityPylons(beacons=BEACONS, population=population, world=world,
                              radius=1, gain=10)
 
     # Contact tracing model
-    c_tracing = ContactTracing(radius=2, population=population, duration=15,
-                               track_time=60 * 12 * 30 / 4,
+    c_tracing = ContactTracing(radius=5, population=population, duration=2,
+                               track_time=30 * TIME_SCALAR,
                                coverage=1,
                                false_positives=0,
                                false_negatives=0
                                )
 
     # Deceased duration distribution
-    dd = partial(np.random.normal, 14 * 12 * 60 / 4, 3 * 60 / 4 * 12)
-    id = partial(np.random.normal, 14 * 12 * 60 / 4, 10 * 60 / 4 * 12)
+    dd = partial(np.random.normal, 14 * TIME_SCALAR, 7 * TIME_SCALAR)
+    id = partial(np.random.normal, 12 * TIME_SCALAR, 2 * TIME_SCALAR)
 
     # Deceased model
     covid = CoronaVirus(radius=2, exposure_time=2, population=population,
                         asymptomatic_p=0.4,
-                        death_rate=(0.01, 0.5),
+                        death_rate=(0.05, 0.05),
                         duration_distribution=dd,
                         incubation_distribution=id,
                         icu_beds=10)
 
-    ct_intervention = ContactTracingIntervention(delay=10, population=population,
-                                                 world=world)
+    ct_intervention = ContactIsolationIntervention(delay=3 * TIME_SCALAR, population=population, world=world,
+                                                   quarantine_duration=14 * TIME_SCALAR,
+                                                   test_to_exit=True, test_duration=TIME_SCALAR)
 
-    # engine = Engine([c_tracing, covid, ct_intervention, motion])
+    engine = Engine([c_tracing, covid, ct_intervention, NM, motion], debug=True)
     # engine = Engine([c_tracing, covid, NM, g_pylons, motion])
-    engine = Engine([c_tracing, covid, NM, NM, motion])
+    # engine = Engine([c_tracing, covid, NM, NM, motion])
 
     # Init plots
     pos_gen = engine.step()
     positions = next(pos_gen)[4]
 
-    scat = ax.scatter(*positions.T)
+    scat = ax.scatter(*positions.T, s=16)
     ax.scatter(*g_pylons.beacons.T, marker="+", color="b")
     lines = ax1.plot([0], [[0 for u in UserStates]])
     r_lines = ax2.plot([0], [[0, 0, 0]])
@@ -184,6 +211,12 @@ if __name__ == "__main__":
     plt.show(block=True)
 
     engine.finalize()
+
+    df = pd.DataFrame(engine.debug_timer)
+    df.mean().plot(kind='barh')
+    print(df.head())
+    print(df.describe())
+    plt.show(block=True)
 
     infected = sum((population.state == UserStates.infected) |
                    (population.state == UserStates.asymptomatic))

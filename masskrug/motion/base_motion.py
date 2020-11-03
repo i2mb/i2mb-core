@@ -7,8 +7,9 @@ class Motion(Model):
         self.world = world
         self.population = population
         self.positions = population.position
-        self.motion_mask = np.ones((len(population), 1), dtype=bool)
-        population.add_property("motion_mask", self.motion_mask)
+        if not hasattr(population, "motion_mask"):
+            self.motion_mask = np.ones((len(population), 1), dtype=bool)
+            population.add_property("motion_mask", self.motion_mask)
 
     def step(self, t):
         if not self.population.updated:
@@ -22,4 +23,4 @@ class Motion(Model):
         pass
 
     def check_limits(self, t):
-        self.world.check_positions(self.positions, self.motion_mask, t)
+        self.world.check_positions(self.motion_mask)

@@ -13,7 +13,7 @@ class GravityPylons(Model, Landmark):
         self.radius = radius
         self.__distance = None
         if isinstance(beacons, (int, float)):
-            self.beacons = world.random(int(beacons))
+            self.beacons = world.random_position(int(beacons))
         else:
             self.beacons = np.array(beacons)
             if self.beacons.dtype not in [float, int, complex]:

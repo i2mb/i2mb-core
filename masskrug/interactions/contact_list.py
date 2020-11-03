@@ -27,7 +27,7 @@ class Contact:
     def current(self):
         return self.__current
 
-    def select(self, duration, keep_last=True):
+    def filter(self, duration, keep_last=True):
         last = self.__encounters[-1]
         self.__encounters = [(t0, t1) for t0, t1 in self.__encounters[:-1] if t1 - t0 >= duration]
         if keep_last:
@@ -46,7 +46,7 @@ class Contact:
         self.__longest = None
         self.__current = None
 
-    def add_encounter(self, t, use_last=False):
+    def add_encounter(self, t, use_last=False, duration=None):
         if not self.__encounters:
             self.__encounters.append([t, t])
             self.__latest = t
@@ -56,11 +56,13 @@ class Contact:
 
         t_0, t_1 = self.__encounters[-1]
         if t - t_1 > 1:
-            if use_last:
-                self.__encounters[0] = [t, t]
-            else:
-                self.__encounters.append([t, t])
+            if duration is not None and t_1 - t_0 < duration:
+                self.__encounters.pop(-1)
 
+            if use_last:
+                self.__encounters = []
+
+            self.__encounters.append([t, t])
             self.__latest = t
             self.__current = 0
             return
@@ -80,15 +82,16 @@ class ContactList:
         self.contacts = {}
         self.enabled = True
 
+    def __len__(self):
+        return len(self.contacts)
+
     def update(self, list_, t, duration=None, use_last=False):
         if not self.enabled:
             return
 
         for id_ in list_:
             contact = self.contacts.setdefault(id_, Contact())
-            contact.add_encounter(t, use_last)
-            if duration is not None:
-                contact.select(duration)
+            contact.add_encounter(t, use_last=use_last, duration=duration)
 
         if self.track_time is not None:
             self.prune(t)
@@ -106,7 +109,7 @@ class ContactList:
             return
 
         for c in self.contacts.values():
-            c.select(duration, keep_last=False)
+            c.filter(duration, keep_last=False)
 
         self.contacts = {cid: contact for cid, contact in self.contacts.items()
                          if len(contact.encounters) > 0}

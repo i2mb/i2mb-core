@@ -13,9 +13,16 @@ class RandomMotion(Motion):
     def update_positions(self, t):
         positions = self.population.position
         num_agents = len(positions)
-        direction = np.random.random((num_agents, 1)) * 2 * np.pi
+        # direction = np.random.random((num_agents, 1)) * 2 * np.pi
         mask = self.motion_mask.ravel()
-        positions[mask, :] += (np.hstack((np.cos(direction), np.sin(direction))) * self.step_size)[mask, :]
+        if not mask.any():
+            return
+
+        direction = np.random.random((mask.sum(), 2)) * 2 - 1
+
+        # positions[mask, 0] += (np.cos(direction) * self.step_size)[mask].ravel()
+        # positions[mask, 1] += (np.sin(direction) * self.step_size)[mask].ravel()
+        positions[mask] += direction * self.step_size
 
         if self.gravity_field is not None:
             positions[mask, :] += self.gravity_field

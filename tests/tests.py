@@ -1,5 +1,5 @@
-from worlds.square import SquareWorld
-from engine.particle import ParticleList
+from masskrug.worlds.square import SquareWorld
+from masskrug.engine.particle import ParticleList
 
 if __name__ == "__main__":
     pl = ParticleList(5)
