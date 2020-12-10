@@ -54,7 +54,6 @@ class SleepBehaviour(Model):
         if wake_up.any():
             self.sleep[wake_up] = False
             self.in_bed[left_home] = False
-            self.population.motion_mask[wake_up] = True
             self.last_wakeup_time[wake_up] = t
             self.accumulated_sleep[wake_up] = 0
             self.sleep_start[wake_up] = np.inf

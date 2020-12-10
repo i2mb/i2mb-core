@@ -1,8 +1,10 @@
+from collections import Counter
+
 import numpy as np
 from masskrug.engine.particle import ParticleList
 from masskrug.pathogen import UserStates
-from masskrug.pathogen.base_pathogen import Pathogen
-from masskrug.utils.spatial_utils import region_ravel_multi_index
+from masskrug.pathogen.base_pathogen import Pathogen, SymptomLevels
+from masskrug.utils.spatial_utils import region_ravel_multi_index, contacts_within_radius
 
 
 class RegionVirusDynamicExposure(Pathogen):
@@ -13,41 +15,172 @@ class RegionVirusDynamicExposure(Pathogen):
 
     The exposure_function has following signature:
 
-        function(population, contacts_with_with_distance, time)
+        function(population, contacts_with_distance, time)
 
     The signature of the `recovery_function` and  the`infectiousness_function` is as follows:
 
         function(population, time)
-
-
     """
 
-    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList):
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
+                 radius=5,
+                 duration_distribution=None,
+                 incubation_distribution=None,
+                 symptom_distribution=None, death_rate=0.05):
+        Pathogen.__init__(self, population)
+
+        self.radius = radius ** 2
+        self.incubation_distribution = incubation_distribution
+        self.duration_distribution = duration_distribution
+        if symptom_distribution is None:
+            symptom_distribution = [0.4, 0.4, .138, .062]
+
+        self.symptom_distribution = symptom_distribution
+        self.death_rate = death_rate
         self.population = population
 
         self.infectiousness_function = infectiousness_function
         self.recovery_function = recovery_function
         self.exposure_function = exposure_function
 
+        try:
+            self.__death_rate, self.__death_rate_icu = death_rate
+        except TypeError:
+            self.__death_rate, self.__death_rate_icu = death_rate, death_rate
+
+        if self.__death_rate is None:
+            self.__death_rate = .01
+
+        if self.__death_rate is None:
+            self.__death_rate = .2
+
+        self.death_rate = self.__death_rate
+
         shape = (len(population), 1)
+        self.infectiousness_level = np.zeros(shape)
         self.exposure = np.zeros(shape)
-        self.infectiousness = np.zeros(shape)
+        self.time_exposed = np.zeros(shape)
+
+        # Diagnostics and information
+        self.infection_map = {}
+        self.infected_by = {}
+        self.contact_map = Counter()
+
+    def infect_particles(self, infected, t, asymptomatic=None, skip_incubation=False, symptoms_level=None):
+        num_p0s = len(infected)
+        symptom_distro = self.symptom_distribution.copy()
+        if asymptomatic is None:
+            asymptomatic = True
+
+        if symptoms_level is not None:
+            skip_incubation = True
+
+        if isinstance(asymptomatic, float):
+            if 0 <= asymptomatic <= 1:
+                symptom_distro[SymptomLevels.no_symptoms] = asymptomatic
+                severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s,
+                                            p=symptom_distro)
+            else:
+                # We understand numbers greater than one as the number of asymptomatic particles.
+                asymptomatic = int(asymptomatic)
+
+        elif type(asymptomatic) == bool:
+            if not asymptomatic:
+                symptom_distro[SymptomLevels.no_symptoms] = 0
+
+            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=symptom_distro)
+
+        elif type(asymptomatic) != int:
+            raise RuntimeError(f"Type {type(asymptomatic)} of asymptomatic not supported")
+
+        if type(asymptomatic) == int:
+            assert asymptomatic <= num_p0s, "asymptomatic must be less or equal than the number of num_p0s"
+            a_p = symptom_distro[SymptomLevels.no_symptoms]
+            symptom_distro[SymptomLevels.mild] += a_p
+            symptom_distro[SymptomLevels.no_symptoms] = 0
+            symptom_distro = [symptom_distro[s] for s in SymptomLevels.symptom_levels()]
+            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s,
+                                        p=symptom_distro)
+            severity[:asymptomatic] = SymptomLevels.no_symptoms
+
+        if symptoms_level is not None:
+            severity[:] = symptoms_level
+
+        state = UserStates.infected
+        incubation_period = self.incubation_distribution(size=num_p0s)
+        t_infection = t
+        if skip_incubation:
+            state = UserStates.infectious
+            t_infection = t - incubation_period
+
+        self.states[infected, 0] = state
+        self.symptom_levels[infected, 0] = severity
+        self.duration_infection[infected, 0] = self.duration_distribution(size=num_p0s)
+        self.incubation_period[infected, 0] = incubation_period
+        self.time_of_infection[infected, 0] = t_infection
+        self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
+                                                 self.population.location[infected]]
+        self.outcomes[infected, 0] = np.random.choice([UserStates.immune, UserStates.deceased],
+                                                      size=num_p0s,
+                                                      p=[1 - self.death_rate, self.death_rate])
 
     def update_states(self, t):
-        exposed = self.exposure > 1 & self.population.state == UserStates.susceptible
-        self.population.state[exposed] = UserStates.incubation
-        self.exposure[exposed] = 0
+        newly_exposed = (self.exposure > 1e-80) & (self.states == UserStates.susceptible)
+        if newly_exposed.any():
+            self.states[newly_exposed] = UserStates.exposed
+
+        # Agents that are exposed
+        exposed = self.states == UserStates.exposed
+        if exposed.any():
+            self.time_exposed[exposed] += 1
+            # Fixing 0 approximations
+            recovered = self.exposure <= 1e-80
+            if recovered.any():
+                self.exposure[recovered & exposed] = 0
+                self.time_exposed[recovered & exposed] = 0
+                self.states[recovered & exposed] = UserStates.susceptible
+
+            infected = (self.exposure >= .99) & exposed
+            if infected.any():
+                new_infected_ids = self.population.index[infected.ravel()]
+                self.infect_particles(new_infected_ids, t, asymptomatic=True)
+                self.exposure[infected] = 0
+                exposed[infected] = False
+
+            self.exposure[exposed] = self.recovery_function(t, self.time_exposed[exposed],
+                                                            self.exposure[exposed])
+
+        # Update particle states, infected
+        infected = self.states == UserStates.infected
+        if infected.any():
+            infectious = (self.incubation_period +
+                          self.time_of_infection) <= t
+            if infectious.any():
+                self.states[infected & infectious] = UserStates.infectious
+
+        # Particles that have gone through the decease.
+        active = self.states == UserStates.infectious
+        if active.any():
+            through = (self.duration_infection +
+                       self.incubation_period +
+                       self.time_of_infection) <= t
+            if through.any():
+                self.states[active & through] = self.outcomes[active & through]
+
+            # Update infectiousness level
+            self.infectiousness_level[active] = self.infectiousness_function(t - self.time_of_infection[active],
+                                                                             self.duration_infection[active],
+                                                                             self.incubation_period[active])
 
     def step(self, t):
-        self.update_states(t)
-        self.contact_matrix.reset()
-
         # Freeze the deceased.
         deceased = self.states == UserStates.deceased
         self.population.motion_mask[deceased] = False
 
-        infection_mask = (self.states == UserStates.infected) | (self.states == UserStates.asymptomatic)
-        pandemic_active = (infection_mask | (self.states == UserStates.incubation))
+        self.update_states(t)
+
+        infection_mask = self.states == UserStates.infectious
+        pandemic_active = infection_mask | (self.states == UserStates.infected)
 
         if not pandemic_active.any() and self.wave_done is False:
             self.wave_done = True
@@ -56,68 +189,64 @@ class RegionVirusDynamicExposure(Pathogen):
         if self.wave_done or not infection_mask.any():
             return
 
-        susceptible = (self.states == UserStates.susceptible)
-        contacts = contacts_within_radius(self.population, self.radius)
-        new_exposed = np.zeros_like(self.population.index, dtype=bool)
+        contacts = contacts_within_radius(self.population, self.radius, return_distance=True)
         for region_contacts, region in zip(contacts, [r for r in self.population.regions if len(r.population) > 1]):
-            idx_ = np.unique(region_contacts.ravel())
-            region_infectious = infection_mask[region.population.index]
-            region_susceptibles = susceptible[region.population.index]
-
-            n = len(region.population)
-            idx_contact = region_ravel_multi_index(region_contacts.T, region.population.index)
-            contact_matrix = region_infectious * region_susceptibles.T
-            contact_matrix |= contact_matrix.T
-            region_new_exposed = np.take(contact_matrix, idx_contact)
-            contact_matrix[:] = False
-            idx_triangle = region_ravel_multi_index(region_contacts[region_new_exposed].T, region.population.index)
-            np.put(contact_matrix, idx_triangle, True)
-            contact_matrix |= contact_matrix.T
-            region_new_exposed = contact_matrix.any(axis=0) & region_susceptibles.ravel()
-            if not region_new_exposed.any():
+            region_contacts, distances = region_contacts
+            self.contact_map.update([tuple(sorted(k)) for k in region_contacts])
+            region_infectious = infection_mask[region.population.index].ravel()
+            if not region_infectious.any():
                 continue
 
-            region_contagions = contact_matrix.any(axis=1) & region_infectious.ravel()
-            new_exposed[region.population.index] = region_new_exposed
+            region_susceptible = ((self.states[region.population.index] == UserStates.exposed) |
+                                  (self.states[region.population.index] == UserStates.susceptible)).ravel()
+
+            if not region_susceptible.any():
+                continue
+
+            region_vector_contacts = np.logical_xor(
+                ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_infectious].ravel()).any(
+                    axis=1) &
+                 (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_susceptible].ravel()).any(
+                     axis=1)),
+                ((region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_infectious].ravel()).any(
+                    axis=1) &
+                 (region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_susceptible].ravel()).any(
+                     axis=1)))
+
+            if not region_vector_contacts.any():
+                continue
+
+            exposure = self.exposure_function(t, region_vector_contacts,
+                                              region_contacts, distances,
+                                              region.population.index,
+                                              self.infectiousness_level)
+
+            self.exposure[region.population.index] += exposure.reshape(-1, 1)
+            for x, y in region_contacts[region_vector_contacts]:
+                if self.states[x] == UserStates.infectious:
+                    if self.exposure[y] >= .99 and y not in self.infected_by:
+                        self.infection_map.setdefault(x, {}).setdefault(y, []).append(t)
+                        self.infected_by[y] = x
+
+                else:
+                    if self.exposure[x] >= .99 and x not in self.infected_by:
+                        self.infection_map.setdefault(y, {}).setdefault(x, []).append(t)
+                        self.infected_by[x] = y
 
             # Distribute blame per time, and per particle.
-            time_contribution = 1 / self.exposure_time
-            vector_matrix = ((region_contacts[:, 0] == region.population.index[region_contagions, None]) |
-                             (region_contacts[:, 1] == region.population.index[region_contagions, None]))
-            new_infected_matrix = ((region_contacts[:, 0] == region.population.index[region_new_exposed, None]) |
-                                   (region_contacts[:, 1] == region.population.index[region_new_exposed, None]))
-            infected_count = (vector_matrix.dot(new_infected_matrix.T) / new_infected_matrix.sum(axis=1)).sum(axis=1)
-            infected_count *= time_contribution
-            self.particles_infected[region.population.index[region_contagions]] += infected_count
+            contribution = exposure
+            vector_matrix = (
+                    ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_infectious]) |
+                     (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_infectious])) &
+                    region_vector_contacts.reshape(-1, 1))
+            new_infected_matrix = (
+                    ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_susceptible]) |
+                     (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_susceptible])) &
+                    region_vector_contacts.reshape(-1, 1))
 
-        new_exposed_idx = self.population.index[new_exposed]
-        for ix in new_exposed_idx:
-            exposure_queue = self.exposures[ix]
-            exposure_queue.append(t)
-            while exposure_queue[0] < (t - self.susceptibility_window):
-                exposure_queue.popleft()
+            infected_count = (vector_matrix.T.dot(new_infected_matrix) / new_infected_matrix.sum(axis=0)).sum(axis=1)
+            infected_count *= contribution[region_infectious]
 
-            self.accumulated_time[ix] = len(exposure_queue)
-            self.oldest_exposure[ix] = exposure_queue[0]
+            self.particles_infected[region.population.index[region_infectious]] += infected_count.reshape(-1, 1)
 
-        for ix in self.population.index[self.oldest_exposure.ravel() < (t - self.susceptibility_window)]:
-            exposure_queue = self.exposures[ix]
-            while len(exposure_queue) > 0 and exposure_queue[0] < (t - self.susceptibility_window):
-                exposure_queue.popleft()
-
-            self.accumulated_time[ix] = len(exposure_queue)
-            if len(exposure_queue) > 0:
-                self.oldest_exposure[ix] = exposure_queue[0]
-            else:
-                self.oldest_exposure[ix] = np.nan
-
-        if not new_exposed.any():
-            return
-
-        new_infected = (self.accumulated_time >= self.exposure_time).ravel() & new_exposed
-        new_infected_ids = self.population.index[new_infected.ravel()]
-        self.infect_particles(new_infected_ids, t, asymptomatic=True)
-
-        # no need to return things, access should be made via modules, and not through this return values.
-        # return self.states, self.symptom_levels, self.particles_infected, infected
         return

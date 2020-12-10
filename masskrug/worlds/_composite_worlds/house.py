@@ -92,3 +92,7 @@ class House(CompositeWorld):
                                               (1 / (mag_2 + 100) * np.sign(dist_y) * -self.gain)))
 
         return
+
+    def exit_world(self, idx):
+        bool_ix = self.population.find_indexes(idx)
+        self.population.motion_mask[bool_ix] = True

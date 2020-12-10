@@ -29,6 +29,7 @@ class CompositeWorld(World):
             self.position = np.array([])
             self.gravity = np.array([])
             self.containment_region = np.array([])
+            self.remain = np.array([])
             if waiting_room:
                 self.in_waiting_room = np.array([])
 
@@ -41,7 +42,9 @@ class CompositeWorld(World):
         self.position = self.enter_world(n)
         self.containment_region = np.empty((n,), dtype=object)
         self.home = np.empty((n,), dtype=object)
+        self.remain = np.zeros((n,), dtype=bool)
         population.add_property("location", self.location)
+        population.add_property("remain", self.remain)
         population.add_property("position", self.position)
         population.add_property("containment_region", self.containment_region)
         population.add_property("home", self.home)
@@ -93,7 +96,7 @@ class CompositeWorld(World):
 
     def move_particles(self, idx, region):
         from . import House
-        idx = self.population.index[idx]
+        idx = self.population.index[idx][~self.population.remain[idx]]
 
         if isinstance(region, House):
             if not (self.population.home[idx] == region).all():
@@ -119,7 +122,7 @@ class CompositeWorld(World):
         region.population = self.population[idx]
         region.position = self.position[idx]
         self.location[idx] = region
-        self.position[idx_] = region.enter_world(len(idx_), idx=idx)
+        self.position[idx_] = region.enter_world(len(idx_), idx=idx_)
         self.gravity[idx_] = np.zeros((len(idx_), 2))
 
         region.location = self.location[idx]

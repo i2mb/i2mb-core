@@ -5,9 +5,10 @@ from matplotlib.patches import Rectangle
 
 from masskrug.worlds import CompositeWorld
 from masskrug.worlds.furniture.tables import RectangularTable
+from masskrug.worlds.world_base import PublicSpace
 
 
-class Restaurant(CompositeWorld):
+class Restaurant(CompositeWorld, PublicSpace):
     def __init__(self, num_tables=10, reject_party=True, h_tables=False, seats_table=6, tables_per_row=4,
                  corridor_width=0.3, **kwargs):
         self.table_assignment = {}

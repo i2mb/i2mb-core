@@ -10,7 +10,7 @@ class Ambulance(Motion):
         self.hospital = hospital
 
     def step(self, t):
-        active = self.population.state == UserStates.infected
+        active = self.population.state == UserStates.infectious
         hospitalize = ((self.population.symptom_level >= self.symptom_level).ravel()
                        & active.ravel() & (self.population.location != self.hospital))
         if not any(hospitalize):

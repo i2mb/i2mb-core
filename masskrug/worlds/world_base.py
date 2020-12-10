@@ -235,3 +235,7 @@ class BlankSpace:
 
     def draw_world(self, *args, **kwargs):
         return
+
+
+class PublicSpace(World):
+    pass

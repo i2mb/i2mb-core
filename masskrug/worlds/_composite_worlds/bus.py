@@ -9,9 +9,10 @@ from masskrug import _assets_dir
 
 
 # Based on Mercedes-benz BUS Citaro K 2 doors C 628.405-13*)
+from masskrug.worlds.world_base import PublicSpace
 
 
-class BusMBCitaroK(CompositeWorld):
+class BusMBCitaroK(CompositeWorld, PublicSpace):
     def __init__(self, orientation="vertical", **kwargs):
         # Positions are calculated by hand from the image
         self.seat_positions = np.array([[0.6, 0.4], [0.6, 0.8], [0.6, 1.2],

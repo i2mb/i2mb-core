@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 from itertools import product
 
+from masskrug.pathogen import UserStates
 from masskrug.worlds import CompositeWorld
 
 
@@ -23,6 +24,9 @@ class Hospital(CompositeWorld):
         self.bed_positions[:, 1] = self.dims[1] - self.bed_positions[:, 1]
 
     def enter_world(self, n, **kwargs):
+        self.population.remain[:] = True
+        self.population.motion_mask[:] = False
+
         beds = []
         for p_ix in self.population.index:
             if p_ix in self.bed_assignment:
@@ -47,5 +51,10 @@ class Hospital(CompositeWorld):
         if not hasattr(self, "population"):
             return
 
-        if hasattr(self.population, "motion_mask"):
-            self.population.motion_mask[:] = False
+        if hasattr(self.population, "state"):
+            recovered = ((self.population.state == UserStates.immune) |
+                         (self.population.state == UserStates.deceased)).ravel()
+
+            if recovered.any():
+                self.population.remain[recovered] = False
+                self.population.motion_mask[recovered] = True

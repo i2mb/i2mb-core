@@ -23,7 +23,7 @@ def distance(a, b=None, magnitude=True):
     return x_diff, y_diff
 
 
-def contacts_within_radius(population, radius):
+def contacts_within_radius(population, radius, return_distance=False):
     contacts = []
     n = len(population)
     if not cache_manager.is_cached(f"var_distances"):
@@ -37,7 +37,11 @@ def contacts_within_radius(population, radius):
             idx = r.population.index
             idx = np.array(list(combinations(idx, 2)))
             np.put(distances, ravel_index_triu_nd(idx, n), d)
-            contacts.append(near_neighbours(d, radius, n, idx=idx))
+            if return_distance:
+                contacts.append((near_neighbours(d, radius, n, idx=idx), d[d < radius]))
+            else:
+                contacts.append(near_neighbours(d, radius, n, idx=idx))
+
             cache_manager.cache_variable(**{f"{r}_idx": idx, f"{r}_d": d})
 
         cache_manager.cache_variable(**{f"var_distances": distances})
@@ -48,7 +52,10 @@ def contacts_within_radius(population, radius):
 
             d = cache_manager.get_from_cache(f"{r}_d")
             idx = cache_manager.get_from_cache(f"{r}_idx")
-            contacts.append(near_neighbours(d, radius, n, idx=idx))
+            if return_distance:
+                contacts.append((near_neighbours(d, radius, n, idx=idx), d[d < radius]))
+            else:
+                contacts.append(near_neighbours(d, radius, n, idx=idx))
 
     return contacts
 

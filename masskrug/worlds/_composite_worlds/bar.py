@@ -7,9 +7,10 @@ from matplotlib.patches import Rectangle
 from masskrug.worlds import CompositeWorld
 from masskrug.worlds.furniture.tables import RectangularTable
 from masskrug.worlds.furniture.tables.bar import Bar as BarTable
+from masskrug.worlds.world_base import PublicSpace
 
 
-class Bar(CompositeWorld):
+class Bar(CompositeWorld, PublicSpace):
     def __init__(self, bar_shape="L", corridor_width=0.3, **kwargs):
         self.table_assignment = {}
         self.corridor_width = corridor_width

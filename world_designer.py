@@ -13,11 +13,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     world_name = args.world
 
+    # BAR / Restaurant
+
     mod = import_module(module_name)
     World = getattr(mod, world_name)
 
     population = ParticleList(34)
-    world = World(dims=(20, 20), origin=(10, 4), population=population, orientation="horizontal")
+    world = World(dims=(20, 20), origin=(10, 4), population=population)
 
     # world.move_particles(population.index, world)
     world.sit_particles(population.index[:2])

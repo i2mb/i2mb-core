@@ -7,7 +7,11 @@ class Engine:
         self.debug = debug
         if debug:
             import time
-            self.current_time = time.process_time_ns
+            if hasattr(time, "process_time_ns"):
+                self.current_time = time.process_time_ns
+            else:
+                self.current_time = time.process_time
+
             self.debug_timer = {}
 
         self.time = None

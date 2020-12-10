@@ -1,4 +1,5 @@
 import enum
+import numpy as np
 
 from masskrug.engine.model import Model
 
@@ -20,8 +21,9 @@ class UserStates(enum.IntEnum):
     susceptible = 0
     immune = 1
     deceased = 2
-    infected = 3
-    infectious = 4
+    exposed = 3
+    infected = 4
+    infectious = 5
 
     @staticmethod
     def contagious():
@@ -42,13 +44,60 @@ class SymptomLevels(enum.IntEnum):
     def symptom_levels():
         return SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.severe
 
+    @staticmethod
+    def full_symptom_levels():
+        return SymptomLevels.no_symptoms, SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.severe
+
 
 class Pathogen(Model):
-    def __init__(self):
+    def __init__(self, population):
+        self.population = population
         self.waves = []
         self.wave_done = True
+
+        shape = (len(population), 1)
+        self.states = np.ones(shape) * UserStates.susceptible
+        self.symptom_levels = np.ones(shape) * SymptomLevels.not_sick
+        self.duration_infection = np.zeros(shape)
+        self.incubation_period = np.zeros(shape)
+        self.time_of_infection = np.zeros(shape)
+        self.particles_infected = np.zeros(shape)
+        self.outcomes = np.zeros(shape)
+        self.particle_type = np.zeros(shape)
+        self.location_contracted = np.zeros(shape, dtype=object)
+
+        population.add_property("state", self.states)
+        population.add_property("symptom_level", self.symptom_levels)
+        population.add_property("duration_infection", self.duration_infection)
+        population.add_property("incubation_period", self.incubation_period)
+        population.add_property("time_of_infection", self.time_of_infection)
+        population.add_property("particles_infected", self.particles_infected)
+        population.add_property("particle_type", self.particle_type)
+        population.add_property("outcome", self.outcomes)
+        population.add_property("location_contracted", self.location_contracted)
 
     def update_wave_done(self, pandemic_active, t):
         if not pandemic_active and self.wave_done is False:
             self.wave_done = True
             self.waves[-1][1] = t
+
+    def infect_particles(self, infected, t, asymptomatic=None, skip_incubation=False, symptoms_level=None):
+        raise RuntimeError("Calling Pathogen infect_particle(), please implement in subclass.")
+
+    def get_totals(self):
+        counts = {s: (self.states.ravel() == s).sum() for s in UserStates}
+        return counts
+
+    def get_totals_per_symptom_level(self):
+        counts = {s: (self.symptom_levels.ravel() == s).sum() for s in SymptomLevels}
+        return counts
+
+    def introduce_pathogen(self, num_p0s, t, asymptomatic=None, symptoms_level=None):
+        susceptible = self.population.state == UserStates.susceptible
+        num_p0s = len(susceptible) >= num_p0s and num_p0s or len(susceptible)
+        ids = np.random.choice(range(len(susceptible)), num_p0s, replace=False)
+        if self.wave_done:
+            self.wave_done = False
+            self.waves.append([t, None])
+
+        self.infect_particles(ids, t, asymptomatic, skip_incubation=True, symptoms_level=symptoms_level)

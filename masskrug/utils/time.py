@@ -8,6 +8,10 @@ class SimulationTime:
     def time_scalar(self):
         return 24 * self.ticks_hour
 
+    @time_scalar.setter
+    def time_scalar(self, v):
+        self.ticks_hour = v / 24
+
     def month(self, v):
         return v // self.ticks_month
 

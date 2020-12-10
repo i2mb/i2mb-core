@@ -27,7 +27,7 @@ class CoronaVirus(Pathogen):
     def __init__(self, radius, exposure_time, population: ParticleList, duration_distribution=None,
                  incubation_distribution=None, asymptomatic_p=0.01, death_rate=None, icu_beds=None):
 
-        super().__init__()
+        super().__init__(population)
         self.incubation_distribution = incubation_distribution
         self.radius = radius ** 2
         self.exposure_time = exposure_time
@@ -52,39 +52,9 @@ class CoronaVirus(Pathogen):
 
         self.death_rate = self.__death_rate
 
-        shape = (len(population), 1)
-        self.states = np.ones(shape) * UserStates.susceptible
-        self.symptom_levels = np.ones(shape) * SymptomLevels.not_sick
-        self.duration_infection = np.zeros(shape)
-        self.incubation_period = np.zeros(shape)
-        self.time_of_infection = np.zeros(shape)
-        self.particles_infected = np.zeros(shape)
-        self.outcomes = np.zeros(shape)
-        self.particle_type = np.zeros(shape)
-        self.location_contracted = np.zeros(shape, dtype=object)
         self.contacts = []
         for p in population:
             self.contacts.append(ContactList())
-
-        population.add_property("state", self.states)
-        population.add_property("symptom_level", self.symptom_levels)
-        population.add_property("duration_infection", self.duration_infection)
-        population.add_property("incubation_period", self.incubation_period)
-        population.add_property("time_of_infection", self.time_of_infection)
-        population.add_property("particles_infected", self.particles_infected)
-        population.add_property("particle_type", self.particle_type)
-        population.add_property("outcome", self.outcomes)
-        population.add_property("location_contracted", self.location_contracted)
-
-    def introduce_pathogen(self, num_p0s, t, asymptomatic=None, symptoms_level=None):
-        susceptible = self.population.state == UserStates.susceptible
-        num_p0s = len(susceptible) >= num_p0s and num_p0s or len(susceptible)
-        ids = np.random.choice(range(len(susceptible)), num_p0s, replace=False)
-        if self.wave_done:
-            self.wave_done = False
-            self.waves.append([t, None])
-
-        self.infect_particles(ids, t, asymptomatic, skip_incubation=True, symptoms_level=symptoms_level)
 
     def infect_particles(self, infected, t, asymptomatic=None, skip_incubation=False, symptoms_level=None):
         num_p0s = len(infected)
@@ -181,10 +151,6 @@ class CoronaVirus(Pathogen):
 
         r = vectors / total
         return r
-
-    def get_totals(self):
-        counts = {s: (self.states.ravel() == s).sum() for s in UserStates}
-        return counts
 
     def switch_death_rate(self):
         dr = self.__death_rate
@@ -369,7 +335,7 @@ class RegionCoronaVirusExposureWindow(RegionCoronaVirus):
                                    (region_contacts[:, 1] == region.population.index[region_new_exposed, None]))
             infected_count = (vector_matrix.dot(new_infected_matrix.T) / new_infected_matrix.sum(axis=1)).sum(axis=1)
             infected_count *= time_contribution
-            self.particles_infected[region.population.index[region_contagions]] += infected_count
+            self.particles_infected[region.population.index[region_contagions]] += infected_count.reshape(-1, 1)
 
         new_exposed_idx = self.population.index[new_exposed]
         for ix in new_exposed_idx:
