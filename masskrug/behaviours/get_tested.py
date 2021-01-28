@@ -58,7 +58,7 @@ class GetTested(Model):
         if self.test_to_leave:
             # update test information
             if self.test_household:
-                # Ensure no one in the house hold is infected
+                # Ensure no one in the household is infected
                 affected = ~leave & self.population.isolated
                 lock_down = (self.population.home.reshape((-1, 1)) == self.population.home[affected.ravel()]).any(
                     axis=1)

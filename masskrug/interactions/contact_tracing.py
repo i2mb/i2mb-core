@@ -108,8 +108,8 @@ class ContactTracing(Interaction):
 
 class RegionContactTracing(ContactTracing):
     def step(self, t):
-        """This method is called by the :class:`masskrug.engine.core.Engine` and represent an iteration step. THe engine provides the time
-         `t` of the simulation
+        """This method is called by the :class:`masskrug.engine.core.Engine` and represent an iteration step. The
+        engine provides the time `t` of the simulation
 
          :param t: Simulation time, i.e., number of steps so far.
          :return: Returns the population contact list at time t

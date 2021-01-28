@@ -5,8 +5,10 @@ from .base_intervention import Intervention
 
 
 class ContactIsolationIntervention(Intervention):
-    def __init__(self, population, world, freeze_isolated=False, isolate_household=False, dropouts=0.):
-        self.dropout_ratio = dropouts
+    def __init__(self, population, world, freeze_isolated=False, isolate_household=False,
+                 dct_dropouts=0., mct_dropouts=0.):
+        self.dct_dropout_ratio = dct_dropouts
+        self.mct_dropout_ratio = mct_dropouts
         self.isolate_household = isolate_household
         self.population = population
         self.world = world
@@ -56,6 +58,7 @@ class ContactIsolationIntervention(Intervention):
             self.directly_isolated[new_isolated.ravel(), 0] = True
 
             # Isolate contacts
+            # FIXME: This behaviour should be part of a digital contact tracing module
             contacts = set()
             if hasattr(self.population, "contact_list"):
                 for cl in self.population.contact_list[new_isolated[:, 0], 0]:
@@ -76,11 +79,25 @@ class ContactIsolationIntervention(Intervention):
             # Remove drop outs added back by contacts.
             contacts = contacts.difference(list(self.drop_outs.ravel()))
             new_isolated[list(contacts), 0] = True
+            dct_new_isolated = new_isolated
 
-            # Apply drop out rate
-            if 0 < self.dropout_ratio <= 1.:
-                new_isolated_idx = self.population.index[new_isolated.ravel()]
-                drop_outs = np.random.choice(new_isolated_idx, int(len(new_isolated_idx) * self.dropout_ratio),
+            # Apply drop out rates
+            if hasattr(self.population, "health_authority_request"):
+                mct_new_isolated = new_isolated & self.population.health_authority_request
+                dct_new_isolated = new_isolated & ~self.population.health_authority_request
+
+                if 0 < self.mct_dropout_ratio <= 1.:
+                    mct_new_isolated_idx = self.population.index[mct_new_isolated.ravel()]
+                    drop_outs = np.random.choice(mct_new_isolated_idx,
+                                                 int(len(mct_new_isolated_idx) * self.mct_dropout_ratio),
+                                                 replace=False)
+                    new_isolated[drop_outs, 0] = False
+                    self.drop_outs[drop_outs] = True
+
+            if 0 < self.dct_dropout_ratio <= 1.:
+                dct_new_isolated_idx = self.population.index[dct_new_isolated.ravel()]
+                drop_outs = np.random.choice(dct_new_isolated_idx,
+                                             int(len(dct_new_isolated_idx) * self.dct_dropout_ratio),
                                              replace=False)
                 new_isolated[drop_outs, 0] = False
                 self.drop_outs[drop_outs] = True

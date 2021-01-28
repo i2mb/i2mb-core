@@ -15,13 +15,16 @@ class MoveToTarget(Motion):
         if hasattr(population, "target"):
             self.target = self.population.target
         else:
-            self.target = self.population.position
+            # Proper initialization to nan
             population.add_property("target", self.target)
 
         self.arrived = self.target.copy()
 
     def update_positions(self, t):
         positions = self.population.position
+        if (self.target == np.nan).any():
+            return
+
         difference = positions - self.target
         distance_to_target = np.sqrt((difference ** 2).sum(axis=1))
 

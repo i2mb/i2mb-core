@@ -11,7 +11,7 @@ from masskrug.worlds.world_base import PublicSpace
 
 class ManualContactTracing(Interaction):
     def __init__(self, radius, population, track_time=7, processing_duration=1, recall=0.4, use_restaurant_logs=False,
-                 contact_network=None):
+                 contact_network=None, queue_length=None):
 
         if contact_network is None:
             contact_network = {}
@@ -24,6 +24,7 @@ class ManualContactTracing(Interaction):
             for loc in set(contact_network.values()):
                 self.recall[loc] = recall
 
+        self.queue_length = queue_length
         self.use_restaurant_logs = use_restaurant_logs
         self.processing_duration = processing_duration
         self.track_time = track_time
@@ -45,11 +46,14 @@ class ManualContactTracing(Interaction):
         self.positive_test_report = np.zeros((len(population), 1), dtype=bool)
         population.add_property("positive_test_report", self.positive_test_report)
 
+        # Keep track of isolation requests sent by the health authority
+        self.health_authority_request = np.zeros((len(population), 1), dtype=bool)
+        population.add_property("health_authority_request", self.health_authority_request)
+
     def num_contacts(self):
         return self._num_contacts
 
     def step(self, t):
-
         # Marc contacts
         contacts = contacts_within_radius(self.population, self.radius)
         for region_contacts in contacts:
@@ -62,7 +66,7 @@ class ManualContactTracing(Interaction):
                 self.contact_matrix[k] = 0
                 self._num_contacts[k, :] = 0
 
-                # Enforce relationship recall
+        # Enforce relationship recall
         for k, duration in self.contact_matrix.items():
             contact_type = self.contact_type.get(k, PublicSpace)
             recall_factor = self.recall[contact_type]
@@ -75,6 +79,11 @@ class ManualContactTracing(Interaction):
                 temporal_factor = 0
 
             self.recall_probability[k] = recall_factor * temporal_factor
+
+        # Process contacts once per day.
+        time = global_time.hour(t), global_time.minute(t)
+        if time != (16, 0):
+            return
 
         # Collect positive tests
         new_tests = self.population.test_result & self.positive_test_report
@@ -101,7 +110,7 @@ class ManualContactTracing(Interaction):
             self.processing_contacts[contacts] = True
 
         ready_for_contact = (t - self.processing_time) > self.processing_duration
-        ready_for_contact &= self.processing_contacts
+        ready_for_contact |= self.processing_contacts
         self.processing_contacts[ready_for_contact.ravel()] = False
         if ready_for_contact.any():
             # Apply contact error and contact for isolation and retries
@@ -117,6 +126,17 @@ class ManualContactTracing(Interaction):
             give_up_retry = (~contact & ready_for_contact & (self.retried >= 3)).ravel()
             self.abandoned_contact[give_up_retry] += 1
 
-            # Request isolation
+            # Apply queue limits
             contact &= ready_for_contact
+            if self.queue_length is not None and sum(contact & ready_for_contact) > self.queue_length:
+                contacts_idx = np.arange(len(ready_for_contact))[contact.ravel()]
+                drops = contacts_idx[self.queue_length:]
+                contact[drops] = False
+                self.processing_contacts[drops] = True
+                self.processing_time[drops] = t - global_time.make_time(hour=12)
+                print(f"dropped {len(drops)}")
+
+            print(f"Contacted {sum(contact)} agents")
+            # Request isolation
             self.population.isolation_request[contact.ravel()] = True
+            self.health_authority_request[contact.ravel()] = True
