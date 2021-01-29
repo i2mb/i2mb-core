@@ -41,6 +41,7 @@ class ManualContactTracing(Interaction):
         self.retried = np.zeros((len(population), 1), dtype=int)
         self.abandoned_contact = np.zeros((len(population), 1), dtype=int)
         self._num_contacts = np.zeros((len(population), 1), dtype=int)
+        self.num_contacted = 0
 
         # Report of a positive test.
         self.positive_test_report = np.zeros((len(population), 1), dtype=bool)
@@ -136,7 +137,8 @@ class ManualContactTracing(Interaction):
                 self.processing_time[drops] = t - global_time.make_time(hour=12)
                 print(f"dropped {len(drops)}")
 
-            print(f"Contacted {sum(contact)} agents")
+            self.num_contacted = sum(contact)
+
             # Request isolation
             self.population.isolation_request[contact.ravel()] = True
             self.health_authority_request[contact.ravel()] = True

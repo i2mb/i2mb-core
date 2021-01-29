@@ -44,6 +44,9 @@ class ContactIsolationIntervention(Intervention):
         population.add_property("isolation_request", self.isolation_request)
         population.add_property("leave_request", self.leave_request)
 
+        # People contacted by digital contact tracing, FIXME needs to go in pure DCT module
+        self.dct_contacted = 0
+
     def step(self, t):
         # release particles
         self.release_particles(t)
@@ -83,11 +86,13 @@ class ContactIsolationIntervention(Intervention):
             contacts = contacts.difference(list(self.drop_outs.ravel()))
             new_isolated[list(contacts), 0] = True
             dct_new_isolated = new_isolated
+            self.dct_contacted = dct_new_isolated.sum()
 
             # Apply drop out rates
             if hasattr(self.population, "health_authority_request"):
                 mct_new_isolated = new_isolated & self.population.health_authority_request
                 dct_new_isolated = new_isolated & ~self.population.health_authority_request
+                self.dct_contacted = dct_new_isolated.sum()
 
                 if 0 < self.mct_dropout_ratio <= 1.:
                     mct_new_isolated_idx = self.population.index[mct_new_isolated.ravel()]
