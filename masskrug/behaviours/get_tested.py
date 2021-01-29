@@ -53,7 +53,6 @@ class GetTested(Model):
         leave = self.population.state == UserStates.immune
         leave |= ((self.population.state == UserStates.exposed) |
                   (self.population.state == UserStates.susceptible))
-        leave &= self.population.isolated
 
         if self.test_to_leave:
             # update test information
@@ -74,6 +73,7 @@ class GetTested(Model):
             leave |= (self.population.symptom_level == SymptomLevels.no_symptoms)
             leave &= (t - self.population.isolation_time) > self.quarantine
 
+        leave &= self.population.isolated
         if leave.any():
             self.population.leave_request[leave.ravel()] = True
 

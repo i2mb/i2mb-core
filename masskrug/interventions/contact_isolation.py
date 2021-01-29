@@ -29,6 +29,9 @@ class ContactIsolationIntervention(Intervention):
         self.isolation_request = np.zeros((len(population), 1), dtype=bool)
         self.leave_request = np.zeros((len(population), 1), dtype=bool)
 
+        # Isolation history, event based rendition of isolations
+        self.q_history = {}
+
         # We keep track of isolation of non infectious particles
         self.isolated_fp = np.zeros((len(population), 1), dtype=int)
         self.isolation_time = np.zeros((len(population), 1), dtype=int)
@@ -43,7 +46,7 @@ class ContactIsolationIntervention(Intervention):
 
     def step(self, t):
         # release particles
-        self.release_particles()
+        self.release_particles(t)
 
         # Remove deceased particles from the contact_isolated list.
         alive = (self.population.state != UserStates.deceased)
@@ -111,16 +114,21 @@ class ContactIsolationIntervention(Intervention):
             self.contact_isolated[list(contacts), 0] = new_isolated[list(contacts), 0]
             self.isolation_time[new_isolated.ravel(), 0] = t
 
+            for idx in self.population.index[new_isolated.ravel()]:
+                self.q_history.setdefault(idx, []).append([t, None])
+
             regions = self.world.containment_region
             new_isolated = new_isolated.ravel() & (regions != self.population.location)
             for r in set(regions[new_isolated].ravel()):
                 self.world.move_particles((regions == r) & new_isolated, r)
 
-    def release_particles(self):
+    def release_particles(self, t):
         recovered_ids = self.leave_request.ravel()
         if recovered_ids.any():
             self.population.isolated[recovered_ids, 0] = False
             self.contact_isolated[recovered_ids, 0] = False
+            for idx in self.population.index[recovered_ids]:
+                self.q_history[idx][-1][1] = t
 
             regions = self.world.home
             recovered_ids = recovered_ids.ravel() & (regions != self.population.location)

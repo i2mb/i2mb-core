@@ -26,9 +26,10 @@ class RegionVirusDynamicExposure(Pathogen):
                  radius=5,
                  duration_distribution=None,
                  incubation_distribution=None,
-                 symptom_distribution=None, death_rate=0.05):
+                 symptom_distribution=None, death_rate=0.05, icu_beds=None):
         Pathogen.__init__(self, population)
 
+        self.icu_beds = icu_beds
         self.radius = radius ** 2
         self.incubation_distribution = incubation_distribution
         self.duration_distribution = duration_distribution
@@ -51,8 +52,8 @@ class RegionVirusDynamicExposure(Pathogen):
         if self.__death_rate is None:
             self.__death_rate = .01
 
-        if self.__death_rate is None:
-            self.__death_rate = .2
+        if self.__death_rate_icu is None:
+            self.__death_rate_icu = .5
 
         self.death_rate = self.__death_rate
 
@@ -172,6 +173,12 @@ class RegionVirusDynamicExposure(Pathogen):
                                                                              self.duration_infection[active],
                                                                              self.incubation_period[active])
 
+        # Update death rate as a function of ICU bed occupation (Critical patients)
+        self.death_rate = self.__death_rate
+        if ((self.symptom_levels[active] == SymptomLevels.severe).any() and self.icu_beds is not None and
+                sum(self.symptom_levels[active] == SymptomLevels.severe) > self.icu_beds):
+            self.death_rate = self.__death_rate_icu
+
     def step(self, t):
         # Freeze the deceased.
         deceased = self.states == UserStates.deceased
@@ -234,19 +241,19 @@ class RegionVirusDynamicExposure(Pathogen):
                         self.infected_by[x] = y
 
             # Distribute blame per time, and per particle.
-            contribution = exposure
-            vector_matrix = (
-                    ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_infectious]) |
-                     (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_infectious])) &
-                    region_vector_contacts.reshape(-1, 1))
-            new_infected_matrix = (
-                    ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_susceptible]) |
-                     (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_susceptible])) &
-                    region_vector_contacts.reshape(-1, 1))
-
-            infected_count = (vector_matrix.T.dot(new_infected_matrix) / new_infected_matrix.sum(axis=0)).sum(axis=1)
-            infected_count *= contribution[region_infectious]
-
-            self.particles_infected[region.population.index[region_infectious]] += infected_count.reshape(-1, 1)
+            # contribution = exposure
+            # vector_matrix = (
+            #         ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_infectious]) |
+            #          (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_infectious])) &
+            #         region_vector_contacts.reshape(-1, 1))
+            # new_infected_matrix = (
+            #         ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_susceptible]) |
+            #          (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_susceptible])) &
+            #         region_vector_contacts.reshape(-1, 1))
+            #
+            # infected_count = (vector_matrix.T.dot(new_infected_matrix) / new_infected_matrix.sum(axis=0)).sum(axis=1)
+            # infected_count *= contribution[region_infectious]
+            #
+            # self.particles_infected[region.population.index[region_infectious]] += infected_count.reshape(-1, 1)
 
         return
