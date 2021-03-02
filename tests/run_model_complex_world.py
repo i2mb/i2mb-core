@@ -10,7 +10,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from masskrug.engine.core import Engine
-from masskrug.interactions.contact_tracing import ContactTracing
+from masskrug.interactions.digital_contact_tracing import ContactTracing
 from masskrug.interventions.contact_isolation import ContactIsolationIntervention
 from masskrug import NullModel as NM
 from masskrug.engine.particle import ParticleList

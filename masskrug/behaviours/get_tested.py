@@ -6,29 +6,50 @@ from masskrug.pathogen import UserStates, SymptomLevels
 
 class GetTested(Model):
     def __init__(self, population, delay=2, test_to_leave=False, test_household=False,
+                 delay_test=5,
                  quarantine_duration=5):
+        self.delay_test = delay_test
         self.quarantine = quarantine_duration
         self.test_household = test_household
         self.test_to_leave = test_to_leave
         self.delay = delay
         self.population = population
 
+        self.code = -1
+
         self.test_result_current = np.zeros((len(population), 1), dtype=bool)
 
+        self.self_isolated = 0
+
+    def post_init(self):
+        if hasattr(self.population, "register"):
+            self.code = self.population.register("Self isolation")
+
     def step(self, t):
+        # reset counter
+        self.self_isolated = 0
+
         # Collect results
         test_results = self.population.results_available.ravel()  # this is not a copy
         if test_results.any():
             self.test_result_current[test_results] = True
 
             # Check if we have to report the positive test to the health authorities
+            report_tests = test_results & ~self.population.isolated.ravel()
             if hasattr(self.population, "positive_test_report"):
-                self.population.positive_test_report[test_results] = True
+                self.population.positive_test_report[report_tests] = True
+
+            if hasattr(self.population, "dct_positive_test_report"):
+                self.population.dct_positive_test_report[report_tests] = True
+
+            if hasattr(self.population, "fnf_positive_test_report"):
+                self.population.fnf_positive_test_report[report_tests] = True
 
             self.population.results_available[test_results] = False  # modifying this modifies testresults
 
         # Test results become invalid once agent becomes immune.
-        recovered = ((self.population.state == UserStates.immune) & self.test_result_current &
+        alive = (self.population.state != UserStates.deceased)
+        recovered = (((self.population.state == UserStates.immune) | ~alive) & self.test_result_current &
                      self.population.test_result)
         if recovered.any():
             self.test_result_current[recovered.ravel()] = False
@@ -44,7 +65,9 @@ class GetTested(Model):
         # Request isolation of agents that tested positive
         candidates = self.population.test_result & self.test_result_current & ~self.population.isolated
         if candidates.any():
+            self.self_isolated = candidates.sum()
             self.population.isolation_request[candidates.ravel()] = True
+            self.population.isolated_by[candidates.ravel()] = self.code
 
         if not self.population.isolated.any():
             return
@@ -63,7 +86,8 @@ class GetTested(Model):
                     axis=1)
                 leave &= ~lock_down.reshape((-1, 1))
 
-            get_tests = leave & self.population.isolated & ~self.test_result_current & ~self.population.test_in_process
+            get_tests = leave & self.population.isolated & ((t - self.population.isolation_time) >= self.delay_test)
+            get_tests &= ~self.test_result_current & ~self.population.test_in_process
             self.population.test_request[get_tests.ravel()] = True
             self.test_result_current[get_tests] = False
             leave &= ~self.population.test_result & self.test_result_current

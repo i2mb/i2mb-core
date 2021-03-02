@@ -8,7 +8,7 @@ from matplotlib.animation import FuncAnimation
 
 from masskrug.engine.core import Engine
 from masskrug.engine.particle import ParticleList
-from masskrug.interactions.contact_tracing import RegionContactTracing
+from masskrug.interactions.digital_contact_tracing import RegionContactTracing
 from masskrug.interventions.contact_isolation import ContactIsolationIntervention
 from masskrug.motion.random_motion import RandomMotion
 from masskrug.pathogen.infection import RegionCoronaVirus

@@ -5,3 +5,6 @@ class Model:
     def final(self, t):
         pass
 
+    def post_init(self):
+        pass
+

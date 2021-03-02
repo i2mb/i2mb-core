@@ -12,6 +12,13 @@ class SimulationTime:
     def time_scalar(self, v):
         self.ticks_hour = v / 24
 
+    def time(self, v):
+        """Returns the number of ticks elapsed during the current day"""
+        if v < self.time_scalar:
+            return v
+
+        return v % self.time_scalar
+
     def month(self, v):
         return v // self.ticks_month
 
@@ -24,9 +31,11 @@ class SimulationTime:
         return v // self.time_scalar
 
     def hour(self, v):
+        """Hour of the day (24H)"""
         return (v % self.time_scalar) // self.ticks_hour
 
     def minute(self, v):
+        """Minutes of the hour"""
         return ((v % self.time_scalar) % self.ticks_hour) * 60 // self.ticks_hour
 
     def week_start(self, v):
@@ -36,7 +45,7 @@ class SimulationTime:
         return v // self.ticks_month * self.time_scalar
 
     def to_current(self, delta, t):
-        return t // self.time_scalar + delta
+        return self.days(t) * self.time_scalar + delta
 
     def make_time(self, day=0, month=0, hour=0, minutes=0, week_day=0, delta=0):
         """Converts from date format to the number of ticks since the beginning of the simulation."""
