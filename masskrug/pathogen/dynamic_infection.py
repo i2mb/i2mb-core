@@ -24,15 +24,15 @@ class RegionVirusDynamicExposure(Pathogen):
 
     def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
                  radius=5,
-                 duration_distribution=None,
-                 incubation_distribution=None,
+                 illness_duration_distribution=None,
+                 incubation_duration_distribution=None,
                  symptom_distribution=None, death_rate=0.05, icu_beds=None):
         Pathogen.__init__(self, population)
 
         self.icu_beds = icu_beds
         self.radius = radius ** 2
-        self.incubation_distribution = incubation_distribution
-        self.duration_distribution = duration_distribution
+        self.incubation_duration_distribution = incubation_duration_distribution
+        self.illness_duration_distribution = illness_duration_distribution
         if symptom_distribution is None:
             symptom_distribution = [0.4, 0.4, .138, .062]
 
@@ -108,7 +108,7 @@ class RegionVirusDynamicExposure(Pathogen):
             severity[:] = symptoms_level
 
         state = UserStates.infected
-        incubation_period = self.incubation_distribution(size=num_p0s)
+        incubation_period = self.incubation_duration_distribution(size=num_p0s)
         t_infection = t
         if skip_incubation:
             state = UserStates.infectious
@@ -116,7 +116,7 @@ class RegionVirusDynamicExposure(Pathogen):
 
         self.states[infected, 0] = state
         self.symptom_levels[infected, 0] = severity
-        self.duration_infection[infected, 0] = self.duration_distribution(size=num_p0s)
+        self.duration_infection[infected, 0] = self.illness_duration_distribution(size=num_p0s)
         self.incubation_period[infected, 0] = incubation_period
         self.time_of_infection[infected, 0] = t_infection
         self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
@@ -170,8 +170,9 @@ class RegionVirusDynamicExposure(Pathogen):
 
             # Update infectiousness level
             self.infectiousness_level[active] = self.infectiousness_function(t - self.time_of_infection[active],
-                                                                             self.duration_infection[active],
-                                                                             self.incubation_period[active])
+                                                                             self.incubation_period[active],
+                                                                             self.duration_infection[active]
+                                                                             )
 
         # Update death rate as a function of ICU bed occupation (Critical patients)
         self.death_rate = self.__death_rate
