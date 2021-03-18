@@ -42,6 +42,7 @@ class ManualContactTracing(Interaction):
         self.processing_queue = np.zeros((len(population), 1), dtype=bool)
         self.contacted = np.zeros((len(population), 1), dtype=int)
 
+        self.exposure_time = np.zeros((len(population), 1), dtype=int)
         self.retried = np.zeros((len(population), 1), dtype=int)
         self.abandoned_contact = np.zeros((len(population), 1), dtype=int)
         self._num_contacts = np.zeros((len(population), 1), dtype=int)
@@ -117,6 +118,7 @@ class ManualContactTracing(Interaction):
                 idx = ~((np.array(population_index).reshape(-1, 1) == k).any(axis=0))
                 if np.random.random() < self.recall_probability[k]:
                     contacts.update(np.array(k)[idx])
+                    self.exposure_time[np.array(k)[idx]] = self.last_update[k]
                     self._num_contacts[k, :] += 1
 
             # Mark for processing and for contacting
@@ -135,25 +137,32 @@ class ManualContactTracing(Interaction):
             contact = np.random.random(len(self.population)).reshape(-1, 1) < 0.8
 
             # setup retries
-            retry = (~contact & ready_for_contact & (self.retried < 2)).ravel()
+            old_contacts = (t - self.exposure_time) > global_time.make_time(day=5)
+            retry = (~contact & ready_for_contact & (self.retried < 2) & ~old_contacts).ravel()
             self.processing_contacts[retry] = True
             self.processing_time[retry] = t - self.processing_duration
             self.retried[retry] += 1
 
             # log abandoned contacts Give up contacting people
-            give_up_retry = (~contact & ready_for_contact & (self.retried >= 2)).ravel()
+            give_up_retry = (old_contacts | (~contact & ready_for_contact & (self.retried >= 2))).ravel()
+            self.exposure_time[old_contacts.ravel(), :] = 0
             self.abandoned_contact[give_up_retry] += 1
 
             # Apply queue limits
             contact &= ready_for_contact
             if self.queue_length is not None and sum(contact & ready_for_contact) > self.queue_length:
-                contacts_idx = np.arange(len(ready_for_contact))[contact.ravel()]
-                drops = contacts_idx[self.queue_length:]
-                contact[drops] = False
-                self.processing_contacts[drops] = True
-                self.processing_time[drops] = t - self.processing_duration
 
-                print(f"\n Queue full retries: {len(drops)}")
+                contacts_idx = np.argsort(self.exposure_time[contact].ravel())
+                contacts_idx = self.population.index[contact.ravel()][contacts_idx]
+
+                # contacts_idx = np.arange(len(ready_for_contact))[contact.ravel()]
+                if len(contacts_idx) > self.queue_length:
+                    drops = contacts_idx[self.queue_length:]
+                    contact[drops] = False
+                    self.processing_contacts[drops] = True
+                    self.processing_time[drops] = t - self.processing_duration
+
+                    print(f"\n Queue full retries: {len(drops)}")
 
             # Apply dropout rate
             dropouts = np.random.random((len(self.population), 1)) <= self.dropout
