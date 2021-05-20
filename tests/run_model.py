@@ -1,3 +1,19 @@
+#  dct_mct_analysis
+#  Copyright (C) 2021  FAU - RKI
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 from collections import deque
 from functools import partial
 
@@ -18,7 +34,7 @@ from masskrug.motion.random_motion import RandomMotion
 from masskrug.pathogen.base_pathogen import UserStates
 from masskrug.pathogen.infection import CoronaVirus
 from masskrug.utils import global_time
-from masskrug.worlds import SquareWorld, House
+from masskrug.worlds import SquareWorld, Home
 from masskrug.worlds.g_pylons import GravityPylons
 
 CM = rcParams["axes.prop_cycle"].by_key()['color']
@@ -176,7 +192,7 @@ if __name__ == "__main__":
     population = ParticleList(NUM_PARTICLES)
 
     # world = SquareWorld(WORLD_BOX, population)
-    world = House(dims=(6, 8), population=population, always_on=False, gain=10)
+    world = Home(dims=(6, 8), population=population, always_on=False, gain=10)
     motion = RandomMotion(world, population, step_size=0.2, )
     g_pylons = GravityPylons(beacons=BEACONS, population=population, world=world,
                              radius=1, gain=10)
