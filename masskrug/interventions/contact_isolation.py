@@ -90,7 +90,6 @@ class ContactIsolationIntervention(Intervention):
             self.isolation_time[new_isolated.ravel(), 0] = t
 
             for idx in self.population.index[new_isolated.ravel()]:
-                # print(self.__requesters[self.isolated_by[idx][0]], idx)
                 self.q_history.setdefault(idx, []).append([self.isolated_by[idx], t, None])
 
             regions = self.world.containment_region

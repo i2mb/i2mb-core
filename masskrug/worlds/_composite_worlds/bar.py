@@ -42,7 +42,6 @@ class Bar(CompositeWorld, PublicSpace):
         bw, bh = self.bar.get_bbox()[2:]
         width = (num_tables + 1) * self.corridor_width + num_tables * tw
         length = 3 * self.corridor_width + bh + th
-        print(f"Bar dimensions: {width} {length}")
         kwargs["dims"] = (width, length)
         super().__init__(**kwargs)
 

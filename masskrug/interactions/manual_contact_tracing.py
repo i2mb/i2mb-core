@@ -119,8 +119,6 @@ class ManualContactTracing(Interaction):
             self.positive_test_report[new_tests.ravel()] = False
             population_index = self.population.index[new_tests.ravel()]
 
-            print(f"\n New Tests: {new_tests.sum()}")
-
             # Get contacts of positive tests
             contacts = set()
 
@@ -174,8 +172,6 @@ class ManualContactTracing(Interaction):
                     contact[drops] = False
                     self.processing_contacts[drops] = True
                     self.processing_time[drops] = t - self.processing_duration
-
-                    print(f"\n Queue full retries: {len(drops)}")
 
             # Apply dropout rate
             dropouts = np.random.random((len(self.population), 1)) <= self.dropout
