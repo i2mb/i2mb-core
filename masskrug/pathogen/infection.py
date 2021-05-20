@@ -94,8 +94,8 @@ class CoronaVirus(Pathogen):
         self.states[infected, 0] = state
         self.particle_type[infected, 0] = infectious_state
         self.symptom_levels[infected, 0] = severity
-        self.duration_infection[infected, 0] = self.duration_distribution(size=num_p0s)
-        self.incubation_period[infected, 0] = incubation_period
+        self.infectious_duration_pso[infected, 0] = self.duration_distribution(size=num_p0s)
+        self.incubation_duration[infected, 0] = incubation_period
         self.time_of_infection[infected, 0] = t
         self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
                                                  self.population.location[infected]]
@@ -107,15 +107,15 @@ class CoronaVirus(Pathogen):
         # Update everyone's status
         # Particles that change state from incubation to infection
         active = self.states == UserStates.incubation
-        infectious = (self.incubation_period +
+        infectious = (self.incubation_duration +
                       self.time_of_infection) <= t
         self.states[active & infectious] = self.particle_type[active & infectious]
 
         # Particles that have gone through the decease.
         active = ((self.states == UserStates.asymptomatic) |
                   (self.states == UserStates.infected))
-        through = (self.duration_infection +
-                   self.incubation_period +
+        through = (self.infectious_duration_pso +
+                   self.incubation_duration +
                    self.time_of_infection) <= t
         self.states[active & through] = self.outcomes[active & through]
 
@@ -125,8 +125,8 @@ class CoronaVirus(Pathogen):
 
         # Update the death rate
         self.death_rate = self.__death_rate
-        if ((self.symptom_levels[active] == SymptomLevels.severe).any() and self.icu_beds is not None and
-                sum(self.symptom_levels[active] == SymptomLevels.severe) > self.icu_beds):
+        if ((self.symptom_levels[active] == SymptomLevels.strong).any() and self.icu_beds is not None and
+                sum(self.symptom_levels[active] == SymptomLevels.strong) > self.icu_beds):
             self.death_rate = self.__death_rate_icu
 
     @cache_manager

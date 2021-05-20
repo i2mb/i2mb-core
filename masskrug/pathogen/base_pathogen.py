@@ -36,17 +36,18 @@ class SymptomLevels(enum.IntEnum):
 
     # Asymptomatic patient
     no_symptoms = 0
-    mild = 1
-    strong = 2
-    severe = 3
+    recovering = 1
+    mild = 2
+    strong = 3
+    critical = 4
 
     @staticmethod
     def symptom_levels():
-        return SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.severe
+        return SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.critical
 
     @staticmethod
     def full_symptom_levels():
-        return SymptomLevels.no_symptoms, SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.severe
+        return SymptomLevels.no_symptoms, SymptomLevels.mild, SymptomLevels.strong, SymptomLevels.critical
 
 
 class Pathogen(Model):
@@ -58,8 +59,9 @@ class Pathogen(Model):
         shape = (len(population), 1)
         self.states = np.ones(shape) * UserStates.susceptible
         self.symptom_levels = np.ones(shape) * SymptomLevels.not_sick
-        self.duration_infection = np.zeros(shape)
-        self.incubation_period = np.zeros(shape)
+        self.infectious_duration_pso = np.zeros(shape)
+        self.incubation_duration = np.zeros(shape)
+        self.illness_duration = np.zeros(shape)
         self.time_of_infection = np.zeros(shape)
         self.particles_infected = np.zeros(shape)
         self.outcomes = np.zeros(shape)
@@ -68,8 +70,9 @@ class Pathogen(Model):
 
         population.add_property("state", self.states)
         population.add_property("symptom_level", self.symptom_levels)
-        population.add_property("duration_infection", self.duration_infection)
-        population.add_property("incubation_period", self.incubation_period)
+        population.add_property("infectious_duration_pso", self.infectious_duration_pso)
+        population.add_property("incubation_duration", self.incubation_duration)
+        population.add_property("illness_duration", self.illness_duration)
         population.add_property("time_of_infection", self.time_of_infection)
         population.add_property("particles_infected", self.particles_infected)
         population.add_property("particle_type", self.particle_type)

@@ -55,7 +55,7 @@ class GetTested(Model):
             self.test_result_current[recovered.ravel()] = False
 
         active = self.population.state == UserStates.infectious
-        candidates = (t - (self.population.time_of_infection + self.population.incubation_period)) >= self.delay
+        candidates = (t - (self.population.time_of_infection + self.population.incubation_duration)) >= self.delay
         candidates &= active & ~self.population.test_in_process & ~self.population.test_result
         if candidates.any():
             candidates = candidates.ravel()

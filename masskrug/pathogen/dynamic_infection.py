@@ -25,6 +25,7 @@ class RegionVirusDynamicExposure(Pathogen):
     def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
                  radius=5,
                  illness_duration_distribution=None,
+                 infectiousness_duration_pso=None,
                  incubation_duration_distribution=None,
                  symptom_distribution=None, death_rate=0.05, icu_beds=None):
         Pathogen.__init__(self, population)
@@ -32,6 +33,7 @@ class RegionVirusDynamicExposure(Pathogen):
         self.icu_beds = icu_beds
         self.radius = radius ** 2
         self.incubation_duration_distribution = incubation_duration_distribution
+        self.infectiousness_duration_pso = infectiousness_duration_pso
         self.illness_duration_distribution = illness_duration_distribution
         if symptom_distribution is None:
             symptom_distribution = [0.4, 0.4, .138, .062]
@@ -116,8 +118,8 @@ class RegionVirusDynamicExposure(Pathogen):
 
         self.states[infected, 0] = state
         self.symptom_levels[infected, 0] = severity
-        self.duration_infection[infected, 0] = self.illness_duration_distribution(size=num_p0s)
-        self.incubation_period[infected, 0] = incubation_period
+        self.infectious_duration_pso[infected, 0] = self.illness_duration_distribution(size=num_p0s)
+        self.incubation_duration[infected, 0] = incubation_period
         self.time_of_infection[infected, 0] = t_infection
         self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
                                                  self.population.location[infected]]
@@ -154,7 +156,7 @@ class RegionVirusDynamicExposure(Pathogen):
         # Update particle states, infected
         infected = self.states == UserStates.infected
         if infected.any():
-            infectious = (self.incubation_period +
+            infectious = (self.incubation_duration +
                           self.time_of_infection) <= t
             if infectious.any():
                 self.states[infected & infectious] = UserStates.infectious
@@ -162,22 +164,22 @@ class RegionVirusDynamicExposure(Pathogen):
         # Particles that have gone through the decease.
         active = self.states == UserStates.infectious
         if active.any():
-            through = (self.duration_infection +
-                       self.incubation_period +
+            through = (self.infectious_duration_pso +
+                       self.incubation_duration +
                        self.time_of_infection) <= t
             if through.any():
                 self.states[active & through] = self.outcomes[active & through]
 
             # Update infectiousness level
             self.infectiousness_level[active] = self.infectiousness_function(t - self.time_of_infection[active],
-                                                                             self.incubation_period[active],
-                                                                             self.duration_infection[active]
+                                                                             self.incubation_duration[active],
+                                                                             self.infectious_duration_pso[active]
                                                                              )
 
         # Update death rate as a function of ICU bed occupation (Critical patients)
         self.death_rate = self.__death_rate
-        if ((self.symptom_levels[active] == SymptomLevels.severe).any() and self.icu_beds is not None and
-                sum(self.symptom_levels[active] == SymptomLevels.severe) > self.icu_beds):
+        if ((self.symptom_levels[active] == SymptomLevels.strong).any() and self.icu_beds is not None and
+                sum(self.symptom_levels[active] == SymptomLevels.strong) > self.icu_beds):
             self.death_rate = self.__death_rate_icu
 
     def step(self, t):
