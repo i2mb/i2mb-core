@@ -14,6 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+from pprint import pprint
 
 import numpy as np
 import pandas as pd
@@ -98,6 +99,7 @@ class Experiment:
 
     def save_data(self):
         self.create_directories()
+        self.write_meta_data()
         df = pd.DataFrame(self.final_agent_stats)
         key = f"end_values"
         df.to_hdf(f"{self.get_filename()}.hdf", key=key)
@@ -124,3 +126,12 @@ class Experiment:
             print("Some files were found for this run and they will be overwritten.")
 
         return npz_file_exists and hdf_file_exists and results_hdf_file_exists
+
+    def write_meta_data(self):
+        meta_data_file_name = os.path.join(self.data_dir, "meta_data")
+        if os.path.exists(meta_data_file_name):
+            return
+
+        with open(meta_data_file_name, "wt") as out:
+            pprint(self.config, stream=out)
+
