@@ -130,7 +130,7 @@ class Experiment:
     def all_files_exist(self):
         npz_file_exists = self.file_exists(".npz")
         hdf_file_exists = self.file_exists(".hdf")
-        results_hdf_file_exists = self.file_exists(".npz")
+        results_hdf_file_exists = self.file_exists("_results.hdf")
         if (npz_file_exists or hdf_file_exists or results_hdf_file_exists) and self.overwrite_files:
             print("Some files were found for this run and they will be overwritten.")
 
