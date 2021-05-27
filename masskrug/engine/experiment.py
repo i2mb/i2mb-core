@@ -29,6 +29,7 @@ class Experiment:
         self.data_dir = self.config.get("data_dir", "./")
         self.scenario_name = config.get("scenario", {}).get("name", "test")
         self.name = self.config.get("experiment_name", "dct_v_mct")
+        self.config_name = self.config.get("name", None)
         self.overwrite_files = self.config.get("overwrite_files", False)
         self.save_files = self.config.get("save_files", False)
         self.sim_engine = None
@@ -52,8 +53,10 @@ class Experiment:
     def run_sim_engine(self):
         np.random.seed(0)
         if self.save_files and not self.overwrite_files and self.all_files_exist():
-            print(f"Run {self.run_id} finished. Files exist.")
+            print(f"Run {self.run_id} skipped. Files exist.")
             return
+
+        self.display_start_msg()
 
         for frame in self.frame_generator():
             self.collect_time_series_data(frame)
@@ -77,6 +80,13 @@ class Experiment:
 
     def process_trigger_events(self, frame):
         raise RuntimeError("process_trigger_events needs to be implemented in child class.")
+
+
+    def display_start_msg(self):
+        if self.config_name is None:
+            print(f"Run {self.get_base_name()} Started.")
+        else:
+            print(f"Run {self.get_base_name()} Started with config {self.config_name}.")
 
     def create_directories(self):
         dir_ = self.get_experiment_dir()
