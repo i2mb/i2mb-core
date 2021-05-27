@@ -93,8 +93,8 @@ class Home(CompositeWorld):
             if send_to_bed.any():
                 self.population.in_bed[send_to_bed] = True
                 self.population.motion_mask[send_to_bed] = False
-                beds = (self.bed_assignment == self.population.index).any(axis=1)
-                self.population.position[send_to_bed] = self.beds[beds][send_to_bed]
+                beds = (self.bed_assignment == self.population.index[send_to_bed]).any(axis=1)
+                self.population.position[send_to_bed] = self.beds[beds]
 
         hour = global_time.hour(t)
         if not self.always_on and hour not in self.activation_times:
