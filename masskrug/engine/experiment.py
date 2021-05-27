@@ -81,7 +81,6 @@ class Experiment:
     def process_trigger_events(self, frame):
         raise RuntimeError("process_trigger_events needs to be implemented in child class.")
 
-
     def display_start_msg(self):
         if self.config_name is None:
             print(f"Run {self.get_base_name()} Started.")
@@ -144,4 +143,3 @@ class Experiment:
 
         with open(meta_data_file_name, "wt") as out:
             pprint(self.config, stream=out)
-
