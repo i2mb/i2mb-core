@@ -75,9 +75,6 @@ class RegionVirusDynamicExposure(Pathogen):
         if asymptomatic is None:
             asymptomatic = True
 
-        if symptoms_level is not None:
-            skip_incubation = True
-
         if isinstance(asymptomatic, float):
             if 0 <= asymptomatic <= 1:
                 symptom_distro[SymptomLevels.no_symptoms] = asymptomatic

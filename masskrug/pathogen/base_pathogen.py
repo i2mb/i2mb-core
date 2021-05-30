@@ -95,7 +95,7 @@ class Pathogen(Model):
         counts = {s: (self.symptom_levels.ravel() == s).sum() for s in SymptomLevels}
         return counts
 
-    def introduce_pathogen(self, num_p0s, t, asymptomatic=None, symptoms_level=None):
+    def introduce_pathogen(self, num_p0s, t, asymptomatic=None, symptoms_level=None, skip_incubation=True):
         susceptible = self.population.state == UserStates.susceptible
         num_p0s = len(susceptible) >= num_p0s and num_p0s or len(susceptible)
         ids = np.random.choice(range(len(susceptible)), num_p0s, replace=False)
@@ -103,4 +103,4 @@ class Pathogen(Model):
             self.wave_done = False
             self.waves.append([t, None])
 
-        self.infect_particles(ids, t, asymptomatic, skip_incubation=True, symptoms_level=symptoms_level)
+        self.infect_particles(ids, t, asymptomatic, skip_incubation=skip_incubation, symptoms_level=symptoms_level)
