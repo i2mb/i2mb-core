@@ -170,11 +170,15 @@ class RegionVirusDynamicExposure(Pathogen):
             if through.any():
                 self.states[active & through] = self.outcomes[active & through]
 
-            # Update infectiousness level
-            self.infectiousness_level[active] = self.infectiousness_function(t - self.time_of_infection[active],
-                                                                             self.incubation_duration[active],
-                                                                             self.infectious_duration_pso[active]
-                                                                             )
+        # Update infectiousness level
+        self.infectiousness_level[active | infected] = self.infectiousness_function(t -
+                                                                                    self.time_of_infection[
+                                                                                        active | infected],
+                                                                                    self.incubation_duration[
+                                                                                        active | infected],
+                                                                                    self.infectious_duration_pso[
+                                                                                        active | infected]
+                                                                                    )
 
         # Update death rate as a function of ICU bed occupation (Critical patients)
         self.death_rate = self.__death_rate
@@ -189,8 +193,8 @@ class RegionVirusDynamicExposure(Pathogen):
 
         self.update_states(t)
 
-        infection_mask = self.states == UserStates.infectious
-        pandemic_active = infection_mask | (self.states == UserStates.infected)
+        infection_mask = (self.states == UserStates.infectious) | (self.states == UserStates.infected)
+        pandemic_active = infection_mask
 
         if not pandemic_active.any() and self.wave_done is False:
             self.wave_done = True
