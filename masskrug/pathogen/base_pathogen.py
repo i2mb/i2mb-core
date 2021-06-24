@@ -99,8 +99,11 @@ class Pathogen(Model):
         susceptible = self.population.state == UserStates.susceptible
         num_p0s = len(susceptible) >= num_p0s and num_p0s or len(susceptible)
         ids = np.random.choice(range(len(susceptible)), num_p0s, replace=False)
+        self.start_wave(t)
+
+        self.infect_particles(ids, t, asymptomatic, skip_incubation=skip_incubation, symptoms_level=symptoms_level)
+
+    def start_wave(self, t):
         if self.wave_done:
             self.wave_done = False
             self.waves.append([t, None])
-
-        self.infect_particles(ids, t, asymptomatic, skip_incubation=skip_incubation, symptoms_level=symptoms_level)

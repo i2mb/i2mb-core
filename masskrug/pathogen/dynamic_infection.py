@@ -25,7 +25,7 @@ class RegionVirusDynamicExposure(Pathogen):
     def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
                  radius=5,
                  illness_duration_distribution=None,
-                 infectiousness_duration_pso=None,
+                 infectious_duration_pso_distribution=None,
                  incubation_duration_distribution=None,
                  symptom_distribution=None, death_rate=0.05, icu_beds=None):
         Pathogen.__init__(self, population)
@@ -33,7 +33,11 @@ class RegionVirusDynamicExposure(Pathogen):
         self.icu_beds = icu_beds
         self.radius = radius ** 2
         self.incubation_duration_distribution = incubation_duration_distribution
-        self.infectiousness_duration_pso = infectiousness_duration_pso
+
+        if infectious_duration_pso_distribution is None:
+            infectious_duration_pso_distribution = illness_duration_distribution
+
+        self.infectious_duration_pso_distribution = infectious_duration_pso_distribution
         self.illness_duration_distribution = illness_duration_distribution
         if symptom_distribution is None:
             symptom_distribution = [0.4, 0.4, .138, .062]
@@ -69,95 +73,102 @@ class RegionVirusDynamicExposure(Pathogen):
         self.infected_by = {}
         self.contact_map = Counter()
 
+        self.create_disease_profile()
+
+    def create_disease_profile(self):
+        n = len(self.population)
+        self.incubation_duration[:] = self.incubation_duration_distribution(n).reshape(-1, 1)
+        self.illness_duration[:] = self.illness_duration_distribution(n).reshape(-1, 1)
+        self.infectious_duration_pso[:] = self.infectious_duration_pso_distribution(n).reshape(-1, 1)
+
     def infect_particles(self, infected, t, asymptomatic=None, skip_incubation=False, symptoms_level=None):
         num_p0s = len(infected)
-        symptom_distro = self.symptom_distribution.copy()
+
+        asymptomatic = self.__get_asymptomatic(asymptomatic, num_p0s)
+        severity = self.__get_severity_levels(asymptomatic, num_p0s, symptoms_level)
+
+        state = UserStates.infected
+        incubation_period = self.incubation_duration[infected]
+        t_infection = t
+        if skip_incubation:
+            state = UserStates.infectious
+            t_infection = t - incubation_period
+
+        self.__infect_particles(infected, num_p0s, severity, state, t_infection)
+
+    def __get_severity_levels(self, asymptomatic, num_p0s, symptoms_level):
+        symptom_distro = np.array(self.symptom_distribution.copy())
+        a_p = symptom_distro[SymptomLevels.no_symptoms]
+        distribute_a_p = len(symptom_distro) - 1
+        symptom_distro[1:] += a_p / distribute_a_p
+        symptom_distro[SymptomLevels.no_symptoms] = 0
+        severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=symptom_distro)
+        severity[:asymptomatic] = SymptomLevels.no_symptoms
+
+        if symptoms_level is not None:
+            severity[:] = symptoms_level
+
+        return severity
+
+    def __get_asymptomatic(self, asymptomatic, num_p0s):
+        """Returns the number of asymptomatic to insert in this call."""
         if asymptomatic is None:
             asymptomatic = True
 
         if isinstance(asymptomatic, float):
             if 0 <= asymptomatic <= 1:
-                symptom_distro[SymptomLevels.no_symptoms] = asymptomatic
-                severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s,
-                                            p=symptom_distro)
+                asymptomatic = int(num_p0s * asymptomatic)
             else:
                 # We understand numbers greater than one as the number of asymptomatic particles.
                 asymptomatic = int(asymptomatic)
 
         elif type(asymptomatic) == bool:
             if not asymptomatic:
-                symptom_distro[SymptomLevels.no_symptoms] = 0
-
-            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=symptom_distro)
+                asymptomatic = 0
+            else:
+                asymptomatic = int(self.symptom_distribution[SymptomLevels.no_symptoms] * num_p0s)
 
         elif type(asymptomatic) != int:
             raise RuntimeError(f"Type {type(asymptomatic)} of asymptomatic not supported")
 
-        if type(asymptomatic) == int:
-            assert asymptomatic <= num_p0s, "asymptomatic must be less or equal than the number of num_p0s"
-            a_p = symptom_distro[SymptomLevels.no_symptoms]
-            symptom_distro[SymptomLevels.mild] += a_p
-            symptom_distro[SymptomLevels.no_symptoms] = 0
-            symptom_distro = [symptom_distro[s] for s in SymptomLevels.symptom_levels()]
-            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s,
-                                        p=symptom_distro)
-            severity[:asymptomatic] = SymptomLevels.no_symptoms
+        assert asymptomatic <= num_p0s, "asymptomatic must be less or equal than the number of num_p0s"
 
-        if symptoms_level is not None:
-            severity[:] = symptoms_level
+        return asymptomatic
 
-        state = UserStates.infected
-        incubation_period = self.incubation_duration_distribution(size=num_p0s)
-        t_infection = t
-        if skip_incubation:
-            state = UserStates.infectious
-            t_infection = t - incubation_period
+    def __get_outcomes(self, num_p0s):
+        return np.random.choice([UserStates.immune, UserStates.deceased],
+                                size=num_p0s,
+                                p=[1 - self.death_rate, self.death_rate])
 
+    def __infect_particles(self, infected, num_p0s, severity, state, t_infection):
         self.states[infected, 0] = state
         self.symptom_levels[infected, 0] = severity
-        self.infectious_duration_pso[infected, 0] = self.illness_duration_distribution(size=num_p0s)
-        self.incubation_duration[infected, 0] = incubation_period
         self.time_of_infection[infected, 0] = t_infection
         self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
                                                  self.population.location[infected]]
-        self.outcomes[infected, 0] = np.random.choice([UserStates.immune, UserStates.deceased],
-                                                      size=num_p0s,
-                                                      p=[1 - self.death_rate, self.death_rate])
+        self.outcomes[infected, 0] = self.__get_outcomes(num_p0s)
 
     def update_states(self, t):
-        newly_exposed = (self.exposure > 1e-80) & (self.states == UserStates.susceptible)
-        if newly_exposed.any():
-            self.states[newly_exposed] = UserStates.exposed
+        self.move_susceptible_exposed()
+        self.update_exposed(t)
+        infected = self.move_infected_to_infectious(t)
+        active = self.move_infectious_to_recovered(t)
+        self.update_infectiousness_level(active, infected, t)
 
-        # Agents that are exposed
-        exposed = self.states == UserStates.exposed
-        if exposed.any():
-            self.time_exposed[exposed] += 1
-            # Fixing 0 approximations
-            recovered = self.exposure <= 1e-80
-            if recovered.any():
-                self.exposure[recovered & exposed] = 0
-                self.time_exposed[recovered & exposed] = 0
-                self.states[recovered & exposed] = UserStates.susceptible
+        # Update death rate as a function of ICU bed occupation (Critical patients)
+        self.death_rate = self.__death_rate
+        if ((self.symptom_levels[active] == SymptomLevels.strong).any() and self.icu_beds is not None and
+                sum(self.symptom_levels[active] == SymptomLevels.strong) > self.icu_beds):
+            self.death_rate = self.__death_rate_icu
 
-            infected = (self.exposure >= .99) & exposed
-            if infected.any():
-                new_infected_ids = self.population.index[infected.ravel()]
-                self.infect_particles(new_infected_ids, t, asymptomatic=True)
-                self.exposure[infected] = 0
-                exposed[infected] = False
+    def update_infectiousness_level(self, active, infected, t):
+        # Update infectiousness level
+        self.infectiousness_level[active | infected] = (
+            self.infectiousness_function(t - self.time_of_infection[active | infected],
+                                         self.incubation_duration[active | infected],
+                                         self.infectious_duration_pso[active | infected]))
 
-            self.exposure[exposed] = self.recovery_function(t, self.time_exposed[exposed],
-                                                            self.exposure[exposed])
-
-        # Update particle states, infected
-        infected = self.states == UserStates.infected
-        if infected.any():
-            infectious = (self.incubation_duration +
-                          self.time_of_infection) <= t
-            if infectious.any():
-                self.states[infected & infectious] = UserStates.infectious
-
+    def move_infectious_to_recovered(self, t):
         # Particles that have gone through the decease.
         active = self.states == UserStates.infectious
         if active.any():
@@ -166,27 +177,56 @@ class RegionVirusDynamicExposure(Pathogen):
                        self.time_of_infection) <= t
             if through.any():
                 self.states[active & through] = self.outcomes[active & through]
+        return active
 
-        # Update infectiousness level
-        self.infectiousness_level[active | infected] = self.infectiousness_function(t -
-                                                                                    self.time_of_infection[
-                                                                                        active | infected],
-                                                                                    self.incubation_duration[
-                                                                                        active | infected],
-                                                                                    self.infectious_duration_pso[
-                                                                                        active | infected]
-                                                                                    )
+    def move_infected_to_infectious(self, t):
+        # Update particle states, infected
+        infected = self.states == UserStates.infected
+        if infected.any():
+            infectious = (self.incubation_duration +
+                          self.time_of_infection) <= t
+            if infectious.any():
+                self.states[infected & infectious] = UserStates.infectious
+        return infected
 
-        # Update death rate as a function of ICU bed occupation (Critical patients)
-        self.death_rate = self.__death_rate
-        if ((self.symptom_levels[active] == SymptomLevels.strong).any() and self.icu_beds is not None and
-                sum(self.symptom_levels[active] == SymptomLevels.strong) > self.icu_beds):
-            self.death_rate = self.__death_rate_icu
+    def update_exposed(self, t):
+        # Agents that are exposed
+        exposed = self.states == UserStates.exposed
+        if exposed.any():
+            self.time_exposed[exposed] += 1
+            # Fixing 0 approximations
+            self.move_exposed_to_susceptible(exposed)
+
+            infected = (self.exposure >= .99) & exposed
+            if infected.any():
+                self.move_exposed_to_infected(infected, t)
+                exposed[infected] = False
+
+            self.exposure[exposed] = self.recovery_function(t, self.time_exposed[exposed],
+                                                            self.exposure[exposed])
+
+    def move_exposed_to_infected(self, infected, t):
+        new_infected_ids = self.population.index[infected.ravel()]
+        self.infect_particles(new_infected_ids, t, asymptomatic=True)
+        self.exposure[infected] = 0
+
+    def move_exposed_to_susceptible(self, exposed):
+        recovered = self.exposure <= 1e-80
+        if recovered.any():
+            self.exposure[recovered & exposed] = 0
+            self.time_exposed[recovered & exposed] = 0
+            self.states[recovered & exposed] = UserStates.susceptible
+
+    def move_susceptible_exposed(self):
+        newly_exposed = (self.exposure > 1e-80) & (self.states == UserStates.susceptible)
+        if newly_exposed.any():
+            self.states[newly_exposed] = UserStates.exposed
 
     def step(self, t):
         # Freeze the deceased.
         deceased = self.states == UserStates.deceased
-        self.population.motion_mask[deceased] = False
+        if hasattr(self.population, "motion_mask"):
+            self.population.motion_mask[deceased] = False
 
         self.update_states(t)
 
@@ -243,21 +283,5 @@ class RegionVirusDynamicExposure(Pathogen):
                     if self.exposure[x] >= .99 and x not in self.infected_by:
                         self.infection_map.setdefault(y, {}).setdefault(x, []).append(t)
                         self.infected_by[x] = y
-
-            # Distribute blame per time, and per particle.
-            # contribution = exposure
-            # vector_matrix = (
-            #         ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_infectious]) |
-            #          (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_infectious])) &
-            #         region_vector_contacts.reshape(-1, 1))
-            # new_infected_matrix = (
-            #         ((region_contacts[:, 0].reshape(-1, 1) == region.population.index[region_susceptible]) |
-            #          (region_contacts[:, 1].reshape(-1, 1) == region.population.index[region_susceptible])) &
-            #         region_vector_contacts.reshape(-1, 1))
-            #
-            # infected_count = (vector_matrix.T.dot(new_infected_matrix) / new_infected_matrix.sum(axis=0)).sum(axis=1)
-            # infected_count *= contribution[region_infectious]
-            #
-            # self.particles_infected[region.population.index[region_infectious]] += infected_count.reshape(-1, 1)
 
         return
