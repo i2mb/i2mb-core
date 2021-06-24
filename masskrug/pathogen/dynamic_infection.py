@@ -285,3 +285,75 @@ class RegionVirusDynamicExposure(Pathogen):
                         self.infected_by[x] = y
 
         return
+
+
+class RegionVirusDynamicExposureBaseOnViralLoad(RegionVirusDynamicExposure):
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
+                 radius=5,
+                 clearance_duration_distribution=None,
+                 illness_duration_distribution=None,
+                 proliferation_duration_distribution=None,
+                 max_viral_load_distribution=None,
+                 symptom_onset_estimator=None,
+                 symptom_distribution=None, death_rate=0.05, icu_beds=None, max_viral_load=1,
+                 min_viral_load=1e-80):
+
+        self.symptom_onset_estimator = symptom_onset_estimator
+        self.proliferation_duration_distribution = proliferation_duration_distribution
+        self.clearance_duration_distribution = clearance_duration_distribution
+        self.max_viral_load_distribution = max_viral_load_distribution
+
+        shape = (len(population), 1)
+        self.clearance_duration = np.zeros(shape)
+        self.proliferation_duration = np.zeros(shape)
+        self.max_viral_load = np.zeros(shape)
+
+        super().__init__(exposure_function, recovery_function, infectiousness_function, population, radius=radius,
+                         illness_duration_distribution=illness_duration_distribution,
+                         infectious_duration_pso_distribution=None,
+                         incubation_duration_distribution=None,
+                         symptom_distribution=symptom_distribution, death_rate=death_rate, icu_beds=icu_beds)
+
+        # Normalize with max
+        self.max_viral_load /= max_viral_load
+        self.min_viral_load = min_viral_load / max_viral_load
+
+    def create_disease_profile(self):
+        n = len(self.population)
+        self.clearance_duration[:] = self.clearance_duration_distribution(n).reshape(-1, 1)
+        self.proliferation_duration[:] = self.proliferation_duration_distribution(n).reshape(-1, 1)
+        self.max_viral_load[:] = self.max_viral_load_distribution(n).reshape(-1, 1)
+
+        self.incubation_duration[:] = self.symptom_onset_estimator(self.proliferation_duration,
+                                                                   self.clearance_duration, self.max_viral_load)
+        self.infectious_duration_pso[:] = (self.clearance_duration[:] + self.proliferation_duration[:] -
+                                           self.incubation_duration[:])
+
+        if self.illness_duration_distribution is None:
+            self.illness_duration[:] = self.infectious_duration_pso[:]
+        else:
+            self.illness_duration[:] = self.illness_duration_distribution(n).reshape(-1, 1)
+
+    def update_infectiousness_level(self, active, infected, t):
+        # Update infectiousness level
+        self.infectiousness_level[active | infected] = (
+            self.infectiousness_function(t - self.time_of_infection[active | infected],
+                                         self.incubation_duration[active | infected],
+                                         self.infectious_duration_pso[active | infected],
+                                         self.max_viral_load[active | infected]))
+
+    # def update_exposed(self, t):
+    #     # Agents that are exposed
+    #     exposed = self.states == UserStates.exposed
+    #     if exposed.any():
+    #         self.time_exposed[exposed] += 1
+    #         # Fixing 0 approximations
+    #         self.move_exposed_to_susceptible(exposed)
+    #
+    #         infected = (self.exposure >= self.min_viral_load) & exposed
+    #         if infected.any():
+    #             self.move_exposed_to_infected(infected, t)
+    #             exposed[infected] = False
+    #
+    #         self.exposure[exposed] = self.recovery_function(t, self.time_exposed[exposed],
+    #                                                         self.exposure[exposed])
