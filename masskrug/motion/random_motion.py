@@ -9,27 +9,32 @@ class RandomMotion(Motion):
         super().__init__(world, population)
         self.gravity_field = gravity
         self.step_size = step_size
+        if hasattr(self.population, "motion_mask"):
+            self.motion_mask = population.motion_mask
 
     def update_positions(self, t):
-        positions = self.population.position
-        num_agents = len(positions)
-        # direction = np.random.random((num_agents, 1)) * 2 * np.pi
-        mask = self.motion_mask.ravel()
-        if not mask.any():
-            return
+        if hasattr(self.population, "target"):
+            if np.any(np.isnan(self.population.target)) : # prevent overlay of target motion and random motion
 
-        direction = np.random.random((mask.sum(), 2)) * 2 - 1
+                t = np.isnan(self.population.target)
+                t = [all(i) for i in t]
 
-        # positions[mask, 0] += (np.cos(direction) * self.step_size)[mask].ravel()
-        # positions[mask, 1] += (np.sin(direction) * self.step_size)[mask].ravel()
-        positions[mask] += direction * self.step_size
+                positions = self.population.position[t,:]
+                num_agents = len(positions)
+                direction = np.random.random((num_agents, 1)) * 2 * np.pi
+                mask = np.zeros(len(self.population), dtype=bool)
+                mask[t] = self.motion_mask[t].ravel()
+                if not mask.any():
+                    return
 
-        if self.gravity_field is not None:
-            positions[mask, :] += self.gravity_field
 
-        if hasattr(self.population, "gravity"):
-            positions[mask, :] += self.population.gravity[mask, :]
+                direction = np.random.random((mask.sum(), 2)) * 2 - 1
 
-        # If motion precedes any distance computing module, we need to invalidate the cache to avoid using old
-        # distances.
-        cache_manager.invalidate()
+                self.population.position[mask] += direction * self.step_size
+
+                if self.gravity_field is not None:
+                    positions[mask, :] += self.gravity_field
+
+                # If motion precedes any distance computing module, we need to invalidate the cache to avoid using old
+                # distances.
+                cache_manager.invalidate()

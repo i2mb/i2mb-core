@@ -1,19 +1,3 @@
-#  dct_mct_analysis
-#  Copyright (C) 2021  FAU - RKI
-#
-#  This program is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import numpy as np
 from matplotlib.patches import Rectangle
 
@@ -59,6 +43,7 @@ class CompositeWorld(World):
         self.containment_region = np.empty((n,), dtype=object)
         self.home = np.empty((n,), dtype=object)
         self.remain = np.zeros((n,), dtype=bool)
+
         population.add_property("location", self.location)
         population.add_property("remain", self.remain)
         population.add_property("position", self.position)
@@ -77,9 +62,26 @@ class CompositeWorld(World):
 
     def check_positions(self, mask):
         for r in self.regions:
+            # add support for sub regions
+            from . import BlankSpace
+            if type(r) is not BlankSpace and len(r.regions) > 0:
+                for apartment in r.regions:
+                    if type(apartment) is not BlankSpace and len(apartment.regions) > 0:
+                        for rooms in apartment.regions:
+
+                            if rooms.is_empty():
+                                continue
+                            r_mask = mask[rooms.population.index]
+
+                            rooms.check_positions(r_mask)
+
+                    if apartment.is_empty():
+                        continue
+                    r_mask = mask[apartment.population.index]
+                    apartment.check_positions((r_mask))
+
             if r.is_empty():
                 continue
-
             r_mask = mask[r.population.index]
             r.check_positions(r_mask)
 
@@ -111,12 +113,12 @@ class CompositeWorld(World):
         pass
 
     def move_particles(self, idx, region):
-        from . import Home
+        #       from . import House
         idx = self.population.index[idx][~self.population.remain[idx]]
 
-        if isinstance(region, Home):
-            if not (self.population.home[idx] == region).all():
-                raise RuntimeError("Moving someone to the wrong house")
+        #      if isinstance(region, House):
+        #         if not (self.population.home[idx] == region).all():
+        #            raise RuntimeError("Moving someone to the wrong house")
 
         depart = set(self.location[idx]) - {self}
         for r in depart:
@@ -137,10 +139,12 @@ class CompositeWorld(World):
 
         region.population = self.population[idx]
         region.position = self.position[idx]
+        # previous locations for corridor!!
+        locations = np.array([id(l) for l in self.population.location[idx_]])
         self.location[idx] = region
-        self.position[idx_] = region.enter_world(len(idx_), idx=idx_)
-        self.gravity[idx_] = np.zeros((len(idx_), 2))
-
+        self.position[idx_] = region.enter_world(len(idx_), idx=idx, locations=locations)
+        # self.position[idx_] = region.enter_world(len(idx_), idx=idx)
+        # self.gravity[idx_] = np.zeros((len(idx_), 2))
         region.location = self.location[idx]
         self.population.regions.add(region)
         if self not in self.location and self in self.population.regions:
@@ -156,6 +160,7 @@ class CompositeWorld(World):
 
     def add_regions(self, regions):
         self.regions.extend(regions)
+
         region_origins = list(self.region_origins)
         region_dimensions = list(self.region_dimensions)
         region_origins.extend([r.origin for r in regions])
@@ -178,6 +183,25 @@ class CompositeWorld(World):
         abs_pos = np.zeros((len(self.population), 2))
         seen_index = np.array([])
         for r in self.regions:
+
+            # add support for subregions
+            from . import BlankSpace
+            if type(r) is not BlankSpace and len(r.regions) > 0:
+                for apartment in r.regions:
+                    if type(apartment) is not BlankSpace and len(apartment.regions) > 0:
+                        for rooms in apartment.regions:
+                            if rooms.is_empty():
+                                continue
+                            idx = rooms.population.index
+                            seen_index = np.union1d(seen_index, idx)
+                            abs_pos[idx] = rooms.population.position + r.origin + rooms.origin + apartment.origin
+
+                    if apartment.is_empty():
+                        continue
+                    idx = apartment.population.index
+                    seen_index = np.union1d(seen_index, idx)
+                    abs_pos[idx] = apartment.population.position + apartment.origin + r.origin
+
             if r.is_empty():
                 continue
 
@@ -190,12 +214,11 @@ class CompositeWorld(World):
 
         return abs_pos
 
-    def draw_world(self, ax=None, **kwargs):
+    def draw_world(self, ax=None, origin=(0, 0), **kwargs):
         bbox = kwargs.get("bbox", False)
-        for region in self.regions:
-            region.draw_world(ax=ax, bbox=bbox)
-
         self._draw_world(ax, **kwargs)
+        for region in self.regions:
+            region.draw_world(ax=ax, bbox=bbox, origin=(0, 0))
 
-    def _draw_world(self, ax, bbox=False):
+    def _draw_world(self, ax, bbox=False, origin=(0, 0), **kwargs):
         ax.add_patch(Rectangle(self.origin, *self.dims, fill=False, linewidth=1.2, edgecolor='gray'))
