@@ -27,9 +27,9 @@ class RoomDuration:
         self.duration_outside = np.zeros((n,))
 
         self.corridor = np.array([a.corridor for a in self.population.home])
-        self.livingroom = np.array([a.livingroom for a in self.population.home])
+        self.livingroom = np.array([a.living_room for a in self.population.home])
         self.bath = np.array([a.bath for a in self.population.home])
-        self.diningroom = np.array([a.diningroom for a in self.population.home])
+        self.diningroom = np.array([a.dining_room for a in self.population.home])
         self.kitchen = np.array([a.kitchen for a in self.population.home])
 
         self.floor_numbers = np.array([a.floor_number for a in self.population.home], dtype=int)

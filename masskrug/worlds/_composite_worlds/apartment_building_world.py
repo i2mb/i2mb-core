@@ -61,11 +61,11 @@ class ApartmentBuildingWorld(CompositeWorld):
                                 self.population.home]
         self.kitchen_entries = np.array(self.kitchen_entries)
 
-        self.dining_entries = [self.entries_flatten[self.ids_flatten.index(id(a.diningroom))] for a in
+        self.dining_entries = [self.entries_flatten[self.ids_flatten.index(id(a.dining_room))] for a in
                                self.population.home]
         self.dining_entries = np.array(self.dining_entries)
 
-        self.living_entries = [self.entries_flatten[self.ids_flatten.index(id(a.livingroom))] for a in
+        self.living_entries = [self.entries_flatten[self.ids_flatten.index(id(a.living_room))] for a in
                                self.population.home]
         self.living_entries = np.array(self.living_entries)
 
@@ -77,9 +77,9 @@ class ApartmentBuildingWorld(CompositeWorld):
 
         # rooms in apartment
         self.corridor = np.array([a.corridor for a in self.population.home])
-        self.livingroom = np.array([a.livingroom for a in self.population.home])
+        self.livingroom = np.array([a.living_room for a in self.population.home])
         self.bath = np.array([a.bath for a in self.population.home])
-        self.diningroom = np.array([a.diningroom for a in self.population.home])
+        self.diningroom = np.array([a.dining_room for a in self.population.home])
         self.kitchen = np.array([a.kitchen for a in self.population.home])
 
     '''

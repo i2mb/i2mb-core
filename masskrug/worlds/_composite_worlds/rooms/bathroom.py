@@ -9,12 +9,12 @@ from random import uniform
 from ._room import BaseRoom
 
 """
-    :param guest: Furniture in Bath, 0 = Shower, 1 = Bathtub, 2 = only toilet
+    :param guest: Furniture in Bathroom, 0 = Shower, 1 = Bathtub, 2 = only toilet
     :type guest: int, optional
 """
 
 
-class Bath(BaseRoom):
+class Bathroom(BaseRoom):
     def __init__(self, guest=0, dims=(3, 3), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
         width, height = self.dims[0], self.dims[1]

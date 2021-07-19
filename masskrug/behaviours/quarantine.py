@@ -50,12 +50,12 @@ class QuarantineBehaviour(Model):
             if len(idx) > 0:
                 self.bedrooms.update(dict.fromkeys(self.population.bedroom[idx], idx))
                 apartment = self.population.home[idx]
-                self.population.bedroom[idx] = [a.livingroom for a in apartment]
+                self.population.bedroom[idx] = [a.living_room for a in apartment]
                 self.sleep_pos.update(dict.fromkeys(idx, self.population.sleep_pos[idx]))
-                self.population.sleep_pos[idx] = [a.livingroom.sitting_pos[:len(idx)] for a in apartment]
+                self.population.sleep_pos[idx] = [a.living_room.sitting_pos[:len(idx)] for a in apartment]
 
                 self.dress_pos.update(dict.fromkeys(idx, self.population.dress_pos[idx]))
-                self.population.dress_pos[idx] = [a.livingroom.target_pos[:len(idx)] for a in apartment]
+                self.population.dress_pos[idx] = [a.living_room.target_pos[:len(idx)] for a in apartment]
 
                 self.population.motion_mask[start_quarantine & ~self.population.in_bed] = True
 
