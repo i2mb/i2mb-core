@@ -60,7 +60,7 @@ class NightOut(Motion):
 
                 continue
 
-            self.world.move_particles(leave_ix, venue)
+            self.world.move_agents(leave_ix, venue)
             leave_ix = leave_ix[~self.population.remain[leave_ix]]
             venue.sit_particles(leave_ix)
 
@@ -77,7 +77,7 @@ class NightOut(Motion):
 
         destinations = set(self.population.home[return_ix])
         for r in destinations:
-            self.world.move_particles(return_ix & (self.population.home == r), r)
+            self.world.move_agents(return_ix & (self.population.home == r), r)
 
     def plan_night_out(self, t):
         self.going_out[:] = False

@@ -46,12 +46,12 @@ if __name__ == "__main__":
 
     world = CompositeWorld(WORLD_BOX, population, regions=[roaming_area, isolation])
 
-    world.move_particles(slice(None), roaming_area)
+    world.move_agents(slice(None), roaming_area)
 
     world.home_regions[:] = roaming_area
     world.containment_region[:] = isolation
 
-    # world.move_particles(slice(50), roaming_area)
+    # world.move_agents(slice(50), roaming_area)
     motion = RandomMotion(world, population, step_size=0.5, )
 
     c_tracing = RegionContactTracing(radius=5, population=population, duration=2,

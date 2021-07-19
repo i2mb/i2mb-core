@@ -81,7 +81,7 @@ class ApartmentWorld(CompositeWorld):
                 for c in self.population.home[switch]:
                     bool_idx = (self.population.home == c).ravel() & switch & ~moved
                     if bool_idx.any():
-                        self.move_particles(bool_idx, c.corridor)
+                        self.move_agents(bool_idx, c.corridor)
                         moved[bool_idx] = True
                     if (~moved).sum == 0:
                         break
@@ -102,7 +102,7 @@ class ApartmentWorld(CompositeWorld):
             living = np.array([all(i) for i in living])
             switch = at_target & living
             if switch.any():
-                self.move_particles(switch, self.apartment.livingroom)
+                self.move_agents(switch, self.apartment.living_room)
                 self.population.target[switch] = np.nan
 
             # move to dining_room
@@ -110,8 +110,8 @@ class ApartmentWorld(CompositeWorld):
             dining = np.array([all(i) for i in dining])
             switch = at_target & dining
             if switch.any():
-                self.move_particles(switch, self.apartment.diningroom)
-                self.apartment.diningroom.sit_particles(self.population.index[switch])
+                self.move_agents(switch, self.apartment.dining_room)
+                self.apartment.dining_room.sit_particles(self.population.index[switch])
                 self.population.is_eating[switch] = True
                 self.population.is_preparing[switch] = False
 
@@ -120,7 +120,7 @@ class ApartmentWorld(CompositeWorld):
             kitchen = np.array([all(i) for i in kitchen])
             switch = at_target & kitchen
             if switch.any():
-                self.move_particles(switch, self.apartment.kitchen)
+                self.move_agents(switch, self.apartment.kitchen)
                 self.population.is_preparing[switch] = True
 
             # move to bedroom
@@ -131,7 +131,7 @@ class ApartmentWorld(CompositeWorld):
                 for i in np.argwhere(switch).ravel():
                     temp_bed = np.zeros(n, dtype=bool)
                     temp_bed[i] = True
-                    self.move_particles(temp_bed, self.population.bedroom[i])
+                    self.move_agents(temp_bed, self.population.bedroom[i])
                     self.population.target[temp_bed] = np.nan
 
             # move to bath
@@ -143,7 +143,7 @@ class ApartmentWorld(CompositeWorld):
                 can_go = np.zeros(n, dtype=bool)
                 can_go[np.where(switch)[0][0]] = True
 
-                self.move_particles(can_go, self.apartment.bath)
+                self.move_agents(can_go, self.apartment.bath)
                 self.population.in_bathroom[can_go] = True
                 self.population.target[can_go] = np.nan
 
@@ -161,7 +161,7 @@ class ApartmentWorld(CompositeWorld):
             # Make people come home
             come_home = ~self.population.working.ravel() & ~at_home
             if come_home.any():
-                self.move_particles(come_home, self.apartment.corridor)
+                self.move_agents(come_home, self.apartment.corridor)
                 self.population.is_outside[come_home] = False
                 self.population.busy[come_home] = False
                 self.population.target[come_home] = np.nan
@@ -187,7 +187,7 @@ class ApartmentWorld(CompositeWorld):
                     for i in np.argwhere(leave_apartment).ravel():
                         temp_leave = np.zeros(n, dtype=bool)
                         temp_leave[i] = True
-                        self.move_particles(temp_leave, self.population.office[i])
+                        self.move_agents(temp_leave, self.population.office[i])
 
                     self.population.is_outside[leave_apartment] = True
                     self.population.target[leave_apartment] = np.nan
@@ -272,7 +272,7 @@ class ApartmentWorld(CompositeWorld):
                 targets = self.bed_entries
                 at_home = self.population.at_home.ravel() & self.population.in_quarantine.ravel()
                 if ~at_home.any():
-                    self.move_particles(~at_home, self.apartment.corridor)
+                    self.move_agents(~at_home, self.apartment.corridor)
                     self.population.at_home[~at_home] = True
                     self.population.target[~at_home] = targets[~at_home]
 
@@ -287,7 +287,7 @@ class ApartmentWorld(CompositeWorld):
                     at_entry_point = np.array([all(i) for i in at_entry_point])
                     at_entry = at_entry_point & ~in_bedroom & ~in_corridor
                     if at_entry.any():
-                        self.move_particles(at_entry, self.apartment.corridor)
+                        self.move_agents(at_entry, self.apartment.corridor)
                         self.population.target[at_entry] = targets[at_entry]
 
                     not_at_point = ~at_entry_point & ~in_corridor & ~in_bedroom & at_home
@@ -304,7 +304,7 @@ class ApartmentWorld(CompositeWorld):
                         for i in np.argwhere(at_bedroom_entry).ravel():
                             temp_bed = np.zeros(n, dtype=bool)
                             temp_bed[i] = True
-                            self.move_particles(temp_bed, self.population.bedroom[i])
+                            self.move_agents(temp_bed, self.population.bedroom[i])
 
                 in_bedroom_quarantine = at_home & in_bedroom
                 if in_bedroom_quarantine.any:

@@ -16,4 +16,4 @@ class Undertaker(Motion):
         self.population.motion_mask[deceased.ravel()] = False
 
         move_to_graveyard = deceased.ravel() & (self.population.location != self.graveyard)
-        self.world.move_particles(move_to_graveyard, self.graveyard)
+        self.world.move_agents(move_to_graveyard, self.graveyard)

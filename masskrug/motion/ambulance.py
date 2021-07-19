@@ -20,4 +20,4 @@ class Ambulance(Motion):
 
         move_to_hospital = hospitalize.ravel()
         if move_to_hospital.any():
-            self.world.move_particles(move_to_hospital, self.hospital)
+            self.world.move_agents(move_to_hospital, self.hospital)

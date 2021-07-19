@@ -112,8 +112,8 @@ class CompositeWorld(World):
     def load_map(self, map_file):
         pass
 
-    def move_particles(self, idx, region):
-        #       from . import House
+    def move_agents(self, idx, region):
+        """Only the outer most region can move agents between two contained worlds"""
         idx = self.population.index[idx][~self.population.remain[idx]]
 
         #      if isinstance(region, House):

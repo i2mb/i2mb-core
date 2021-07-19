@@ -95,7 +95,7 @@ class ContactIsolationIntervention(Intervention):
             regions = self.world.containment_region
             new_isolated = new_isolated.ravel() & (regions != self.population.location)
             for r in set(regions[new_isolated].ravel()):
-                self.world.move_particles((regions == r) & new_isolated, r)
+                self.world.move_agents((regions == r) & new_isolated, r)
 
     def release_particles(self, t):
         recovered_ids = self.leave_request.ravel()
@@ -108,6 +108,6 @@ class ContactIsolationIntervention(Intervention):
             regions = self.world.home
             recovered_ids = recovered_ids.ravel() & (regions != self.population.location)
             for r in set(regions[recovered_ids]):
-                self.world.move_particles((regions == r) & recovered_ids, r)
+                self.world.move_agents((regions == r) & recovered_ids, r)
 
             self.leave_request[:] = False
