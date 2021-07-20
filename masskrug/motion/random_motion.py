@@ -9,32 +9,26 @@ class RandomMotion(Motion):
         super().__init__(world, population)
         self.gravity_field = gravity
         self.step_size = step_size
-        if hasattr(self.population, "motion_mask"):
-            self.motion_mask = population.motion_mask
 
     def update_positions(self, t):
+        positions = self.population.position
+        mask = self.motion_mask.ravel()
         if hasattr(self.population, "target"):
-            if np.any(np.isnan(self.population.target)) : # prevent overlay of target motion and random motion
+            # Allow movement of agents without targets
+            mask = np.isnan(self.population.target).any(axis=0)
 
-                t = np.isnan(self.population.target)
-                t = [all(i) for i in t]
+        if not mask.any():
+            return
 
-                positions = self.population.position[t,:]
-                num_agents = len(positions)
-                direction = np.random.random((num_agents, 1)) * 2 * np.pi
-                mask = np.zeros(len(self.population), dtype=bool)
-                mask[t] = self.motion_mask[t].ravel()
-                if not mask.any():
-                    return
+        direction = np.random.random((mask.sum(), 2)) * 2 - 1
+        positions[mask] += direction * self.step_size
 
+        if self.gravity_field is not None:
+            positions[mask, :] += self.gravity_field
 
-                direction = np.random.random((mask.sum(), 2)) * 2 - 1
+        if hasattr(self.population, "gravity"):
+            positions[mask, :] += self.population.gravity[mask, :]
 
-                self.population.position[mask] += direction * self.step_size
-
-                if self.gravity_field is not None:
-                    positions[mask, :] += self.gravity_field
-
-                # If motion precedes any distance computing module, we need to invalidate the cache to avoid using old
-                # distances.
-                cache_manager.invalidate()
+        # If motion precedes any distance computing module, we need to invalidate the cache to avoid using old
+        # distances.
+        cache_manager.invalidate()
