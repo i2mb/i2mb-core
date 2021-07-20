@@ -82,7 +82,7 @@ class Bar(CompositeWorld, PublicSpace):
         CompositeWorld.origin.fset(self, value)
         self.arrange_tables()
 
-    def _draw_world(self, ax, bbox=False):
+    def _draw_world(self, ax, bbox=False, origin=(0., 0.)):
         ax.add_patch(Rectangle(self.origin, *self.dims, fill=False, linewidth=1.2, edgecolor='gray'))
         self.bar.draw(ax, bbox)
         for table in self.lower_tables:
@@ -128,7 +128,7 @@ class Bar(CompositeWorld, PublicSpace):
 
         return len(self.available_tables) * self.seats_table > len(idx)
 
-    def enter_world(self, n, idx=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[:] = False
 

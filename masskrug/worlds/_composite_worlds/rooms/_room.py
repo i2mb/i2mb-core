@@ -26,9 +26,7 @@ class BaseRoom(CompositeWorld):
 
         # create door
         entry_offset = entry * height - DOOR_WIDTH * scale / 2
-        # entry_offset = max(min(0.985 * (width - DOOR_WIDTH * scale), entry_offset), 0)
         self.entry = np.array([width - DOOR_WIDTH * scale, entry_offset])
-        # self.entry = self.rotate_point(self.entry)
 
         # define entry point where you leave and enter
         self.entry_point = self.entry.copy() + (0.5*DOOR_WIDTH, 0.5*DOOR_WIDTH)
@@ -48,9 +46,7 @@ class BaseRoom(CompositeWorld):
 
     def draw_world(self, ax=None, origin=(0, 0), **kwargs):
         bbox = kwargs.get("bbox", False)
-        self._draw_world(ax, origin=self.origin + origin, **kwargs)
-        for region in self.regions:
-            region.draw_world(ax=ax, bbox=bbox, origin=origin + self.origin, **kwargs)
+        super().draw_world(ax, origin=origin, **kwargs)
 
         for f in self.furniture:
             f.draw(ax, bbox, origin + self.origin)
@@ -63,29 +59,10 @@ class BaseRoom(CompositeWorld):
         self.population.motion_mask[bool_ix] = True
 
     def check_positions(self, mask):
-        for r in self.regions:
-            if r.is_empty():
-                continue
-            r_mask = mask[r.population.index]
-            r.check_positions(r_mask)
-
-        if self.is_empty():
-            return
-
-        positions = self.population.position[self.location == self]
-        mask = mask[self.location == self]
-        # check if inside room
-        check_top = mask.ravel() & (positions[:, 0] > self.dims[0])
-        check_right = mask.ravel() & (positions[:, 1] > self.dims[1])
-        check_left = mask.ravel() & (positions[:, 0] < 0)
-        check_bottom = mask.ravel() & (positions[:, 1] < 0)
-
-        positions[check_top, 0] = self.dims[0]
-        positions[check_right, 1] = self.dims[1]
-        positions[check_left, 0] = 0
-        positions[check_bottom, 1] = 0
+        super().check_positions(mask)
 
         ids = self.population.index[self.location == self]
+        positions = self.population.position[self.location == self]
 
         # check if on furniture
         checked = np.zeros(len(positions), dtype=bool)

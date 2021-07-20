@@ -15,31 +15,13 @@ from masskrug.worlds.furniture.furniture_living.couch_table import CouchTable
 
 
 class LivingRoom(BaseRoom):
-    def __init__(self, num_seats=2, dims=(7, 4.5), scale=1, **kwargs):
+    def __init__(self, num_seats=2, dims=(4.5, 7), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
-        width, height = self.dims[0], self.dims[1]
-        offset = [0, 0, height, width, 0]
-        x, y = self.origin[0], self.origin[1]
-        rot = np.radians(self.rotation)
-        num_seats = max(1, min(num_seats, 6))
+        self.num_seats = max(1, min(num_seats, 6))
 
-        self.sofa = [Sofa(self.rotation, scale=scale) for s in range(num_seats // 2)]
-        self.armchair = [Armchair(self.rotation, scale=scale) for s in range(num_seats % 2)]
+        self.sofa = [Sofa(rotation=0, scale=scale) for s in range(num_seats // 2)]
+        self.armchair = [Armchair(rotation=0, scale=scale) for s in range(num_seats % 2)]
 
-        if num_seats == 1:
-            sofa_width = self.armchair[0].width
-            sofa_length = self.armchair[0].length
-        else:
-            sofa_width = self.sofa[0].width
-            sofa_length = self.sofa[0].length
-        sofa_rotation = np.radians(self.rotation - 90)
-
-        sofa_offset = [np.cos(rot) * 0.5 * (width - sofa_width) - np.sin(rot) * 0.1 * height -
-                       np.cos(sofa_rotation) * (sofa_width + sofa_length) + np.sin(sofa_rotation) * (
-                               sofa_length + height * 0.05),
-                       np.sin(rot) * 0.5 * (width - sofa_width) + np.cos(rot) * 0.1 * height -
-                       np.sin(sofa_rotation) * (sofa_width + sofa_length) - np.cos(sofa_rotation) * (
-                               sofa_length + height * 0.05)]
         '''
         # couch table
         table_offset = [
@@ -61,39 +43,11 @@ class LivingRoom(BaseRoom):
         '''
         self.sitting_pos = []
         self.target_pos = []
+
         # arranged in u-form
-        # sofa position
-        i = -1
-        for s in self.sofa:
-            s.rotation += 90 * i
-            rad = np.radians(s.rotation)
-            s.origin = [sofa_offset[0] + offset[int(self.rotation / 90) + 1],
-                        sofa_offset[1] + offset[int(self.rotation / 90)]]
-            sofa_offset[0] += np.cos(rad) * (s.width + s.length + width * 0.05) - \
-                              np.sin(rad) * (s.length + height * 0.05)
-            sofa_offset[1] += np.sin(rad) * (s.width + s.length + width * 0.05) + \
-                              np.cos(rad) * (s.length + height * 0.05)
-            s.set_sitting_position()
-            s.set_sleeping_position()
-            self.sitting_pos.extend(s.get_sitting_position())
-            self.target_pos.extend(s.get_sitting_target())
-            i += 1
+        self.arrange_furniture()
 
-        # armchair position
-        for a in self.armchair:
-            a.rotation += 90 * i
-            rad = np.radians(a.rotation)
-            a.origin = [sofa_offset[0] + offset[int(self.rotation / 90) + 1],
-                        sofa_offset[1] + offset[int(self.rotation / 90)]]
-            sofa_offset[0] += np.cos(rad) * (a.width + a.length + width * 0.05) - \
-                              np.sin(rad) * (a.length + height * 0.05)
-            sofa_offset[1] += np.sin(rad) * (a.width + a.length + width * 0.05) + \
-                              np.cos(rad) * (a.length + height * 0.05)
-            a.set_sitting_position()
-            self.sitting_pos.extend(a.get_sitting_position())
-            self.target_pos.extend(a.get_sitting_target())
-            i += 1
-
+        self.arrange_sitting_positions_n_targets()
         self.sitting_pos = np.array(self.sitting_pos)
         self.target_pos = np.array(self.target_pos)
 
@@ -104,17 +58,50 @@ class LivingRoom(BaseRoom):
         self.available_seats = deque(self.seats, )
         self.seat_assignment = {}
 
-        # rotate room
-        if self.rotation == 90 or self.rotation == 270:
-            self.dims[0], self.dims[1] = self.dims[1], self.dims[0]
-
-        self.furniture += self.sofa
-        self.furniture += self.armchair
+        self.add_furniture(self.sofa)
+        self.add_furniture(self.armchair)
         # self.furniture += [self.table]
 
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
+
+    def arrange_furniture(self):
+        if self.num_seats == 1:
+            sofa_width = min(self.armchair[0].dims)
+            sofa_length = max(self.armchair[0].dims)
+        else:
+            sofa_width = min(self.sofa[0].dims)
+            sofa_length = max(self.sofa[0].dims)
+
+        # sofa position
+        width, height = self.dims
+        furniture = self.armchair + self.sofa
+        num_mid_sofas = len(furniture[2:])
+        mid_height = max(num_mid_sofas * sofa_length + (num_mid_sofas - 1) * 0.2, sofa_length)
+        sofa_angles = [0, 180]
+        sofa_locations = [[0.20 + sofa_width + 0.20, height/2 - mid_height/2 - 0.20 - sofa_width],
+                          [0.20 + sofa_width + 0.20, height/2 + mid_height/2 + 0.20]]
+
+        for ix, f in enumerate(furniture[2:]):
+            sofa_angles.append(270)
+            sofa_locations.append([[0.20,  height/2 - mid_height/2 + (sofa_length + 0.2) * ix]])
+
+        for loc, rot, f in zip(sofa_locations, sofa_angles, furniture):
+            f.rotate(rot)
+            f.origin = loc + self.origin
+
+    def arrange_sitting_positions_n_targets(self):
+        for s in self.sofa:
+            s.set_sitting_position()
+            s.set_sleeping_position()
+            self.sitting_pos.extend(s.get_sitting_position())
+            self.target_pos.extend(s.get_sitting_target())
+
+        for a in self.armchair:
+            a.set_sitting_position()
+            self.sitting_pos.extend(a.get_sitting_position())
+            self.target_pos.extend(a.get_sitting_target())
 
     def sit_particles(self, idx):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)

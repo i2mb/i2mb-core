@@ -43,7 +43,7 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
         if self.orientation == 1:
             self.seat_positions = self.seat_positions.dot([[0, 1], [-1, 0]]) + [self.dims[0], 0]
 
-    def _draw_world(self, ax: Axes, bbox=False):
+    def _draw_world(self, ax: Axes, bbox=False, origin=(0., 0.)):
         img = mpimage.imread(f"{_assets_dir}/CitaroK.png")
         extent = np.array([[0, self.dims[0]], [0, self.dims[1]]]) + self.origin.reshape((2, 1))
         if self.orientation == 1:

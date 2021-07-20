@@ -12,31 +12,26 @@ import numpy as np
 
 
 class Kitchen(BaseRoom):
-    def __init__(self, outline='U', dims=(3.5, 3), scale=1, **kwargs):
+    def __init__(self, outline='U', dims=(3, 3.5), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
-        x, y = self.origin[0], self.origin[1]
-        width, height = self.dims[0], self.dims[1]
-        offset = [0, 0, height, width, 0]  # array to compensate offset after rotation
 
         # create kitchen unit
         if outline != 'U' and outline != 'L' and outline != 'I':
             print(str(outline) + " is not a valid shape, default is used.")
             outline = 'U'
-        self.kitchen_unit = KitchenUnit(shape=outline, rotation=self.rotation, width=width, length=0.75 * height,
-                                        depth=0.75, scale=scale)
-        self.kitchen_unit.origin = [offset[int(self.rotation / 90) + 1], offset[int(self.rotation / 90)]]
 
-        # rotate room
-        if self.rotation == 90 or self.rotation == 270:
-            self.dims[0], self.dims[1] = self.dims[1], self.dims[0]
+        self.kitchen_unit = KitchenUnit(shape=outline, width=self.width,
+                                        height=self.height, depth=0.75, scale=scale)
 
-        self.furniture += [self.kitchen_unit]
+        self.add_furniture([self.kitchen_unit])
 
         n = 1
         if outline == "L":
             n = 2
+
         if outline == "U":
             n = 3
+
         self.outline = outline
         self.furniture_upper = np.empty((n, 2))
         self.furniture_origins = np.empty((n, 2))
@@ -50,7 +45,7 @@ class Kitchen(BaseRoom):
                                      k.origin[1] - offset[(int(k.rotation / 90)) % 4]]
         self.furniture_upper[0] = [k.origin[0] + offset[(int(k.rotation / 90) + 3) % 4],
                                    k.origin[1] + offset[(int(k.rotation / 90) + 2) % 4]]
-        offset = [0, 0, k.length, k.depth]
+        offset = [0, 0, k.width, k.depth]
         if n > 1:
             self.furniture_origins[1] = [k.origin[0] - offset[(int(k.rotation / 90) + 1) % 4],
                                          k.origin[1] - offset[(int(k.rotation / 90)) % 4]]

@@ -8,7 +8,7 @@ from ._table import MINIMUM_CHAIR_SPACE, BaseTable
 
 class Bar(BaseTable):
     def __init__(self, sits=8, origin=None, shape="L", bar_width=0.4, seats_main=4, **kwargs):
-        super().__init__(origin, sits, **kwargs)
+        super().__init__(bar_width, 2, origin=origin, sits=sits, **kwargs)
         self.seats_main = seats_main
         self.bar_width = bar_width
         self.shape = shape

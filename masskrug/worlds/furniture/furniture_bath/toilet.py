@@ -1,53 +1,52 @@
 import numpy as np
+from masskrug.worlds.furniture.base_furniture import BaseFurniture
 
 from matplotlib.patches import Rectangle, Arc, PathPatch
 from matplotlib.path import Path
 
 
-class Toilet:
-    def __init__(self, rotation=0, origin=None, scale=1, width=0.6, length=0.75):
-        self.width = width * scale
-        self.length = length * scale
-        self.__origin = origin
-        self.rotation = rotation
-        rot = np.radians(rotation)
-        self.sitting_pos = np.array([(np.cos(rot) * self.width - np.sin(rot) * self.length) / 2,
-                                     (np.sin(rot) * self.width + np.cos(rot) * self.length) / 2])
+class Toilet(BaseFurniture):
+    width = 0.6
+    height = 0.75
 
-        if origin is None:
-            self.__origin = np.array([0, 0])
+    def __init__(self, rotation=0, origin=None, scale=1):
+        super().__init__(Toilet.height, Toilet.width, origin, rotation, scale)
+        self.sitting_pos = self.dims / 2
+        self.points.append(self.sitting_pos)
 
-    @property
-    def origin(self):
-        return self.__origin
+        # Tank
+        self.tank_points = [np.array([0.05, 0.]), self.dims * [0.9, 0.2]]
+        self.points.extend(self.tank_points)
 
-    @origin.setter
-    def origin(self, origin):
-        self.__origin = np.array(origin)
-        self.sitting_pos += self.__origin
+        # Lid
+        path_origin = np.array([0.0, self.height - self.width * 0.5])
+        second_point = np.array([0.0, self.height * 0.25])
+        third_point = np.array([self.width, self.height * 0.25])
+        fourth_point = np.array([self.width, self.height - self.width * 0.5])
+        self.lid_points = [path_origin, second_point, third_point, fourth_point]
+        self.points.extend(self.lid_points)
+
+        self.lead_center = np.array([self.width * 0.5, self.height - self.width * 0.5])
+        self.points.append(self.lead_center)
 
     def draw(self, ax, bbox=True, origin=(0, 0)):
         abs_origin = self.origin + origin
-        rot = np.radians(self.rotation)
+        if bbox:
+            ax.add_patch(Rectangle(abs_origin, self.width, self.height, fill=True, facecolor="blue",
+                                   linewidth=1.2, alpha=0.4, edgecolor="gray"))
+
+        # Tank
+        origin = self.tank_points[0]
+        width, height = self.tank_points[1] - origin
         ax.add_patch(
-            Rectangle(abs_origin, self.width * 0.8, self.length * 0.2, self.rotation, fill=False, facecolor="gray",
+            Rectangle(abs_origin + origin, width, height, fill=False, facecolor="gray",
                       linewidth=1.2, alpha=0.4, edgecolor="gray"))
 
-        arc_offset = [np.cos(rot) * self.width * 0.4 - np.sin(rot) * self.length * 0.7,
-                      np.sin(rot) * self.width * 0.4 + np.cos(rot) * self.length * 0.7]
-        ax.add_patch(Arc((abs_origin[0] + arc_offset[0], abs_origin[1] + arc_offset[1]), self.width, self.width,
-                         180, 180 + self.rotation, 0 + self.rotation, fill=False, linewidth=1.2,
+        # Lid
+        width = min(self.dims)
+        ax.add_patch(Arc(abs_origin + self.lead_center, width, width,
+                         self.rotation, 0, 180, fill=False, linewidth=1.2,
                          edgecolor='gray', alpha=0.4))
 
-        offset = [-np.sin(rot) * self.length * 0.2 - np.cos(rot) * self.width * 0.1,
-                  np.cos(rot) * self.length * 0.2 - np.sin(rot) * self.width * 0.1]
-
-        path_start = [-np.sin(rot) * self.length * 0.5, np.cos(rot) * self.length * 0.5]
-        path_stop = [np.cos(rot) * self.width, np.sin(rot) * self.width]
-
-        ax.add_patch(PathPatch(Path([abs_origin + offset, abs_origin + offset + path_start]),
-                               fill=False, linewidth=1.2, edgecolor='grey', alpha=0.4))
-        ax.add_patch(PathPatch(Path([abs_origin + offset, abs_origin + offset + path_stop]),
-                               fill=False, linewidth=1.2, edgecolor='grey', alpha=0.4))
-        ax.add_patch(PathPatch(Path([abs_origin + offset + path_stop, abs_origin + offset + path_stop + path_start]),
+        ax.add_patch(PathPatch(Path(abs_origin + self.lid_points),
                                fill=False, linewidth=1.2, edgecolor='grey', alpha=0.4))

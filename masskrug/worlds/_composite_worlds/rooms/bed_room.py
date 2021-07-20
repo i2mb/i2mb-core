@@ -14,43 +14,13 @@ from masskrug.worlds.furniture.bed import Bed
 class BedRoom(BaseRoom):
     def __init__(self, num_beds=1, dims=(5.5, 3), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
-        width, height = self.dims[0], self.dims[1]
-        offset = [0, 0, height, width, 0]  # array to compensate offset after rotation
-        rot = np.radians(self.rotation)
+        width, height = self.dims
 
         # create beds
         num_beds = max(1, min(num_beds, 2))
-        self.beds = [Bed(self.rotation, scale=scale) for b in range(num_beds)]
+        self.beds = [Bed(origin=[0, (height - 1) * b], scale=scale, rotation=90) for b in range(num_beds)]
 
-        # bed positioned in the bottom middle (considering a rotation of 0)
-        if num_beds == 1:
-            bed_offset = 0.5 * (width - self.beds[0].width)
-            self.beds[0].origin = [bed_offset * np.cos(rot) + offset[int(self.rotation / 90) + 1],
-                                   bed_offset * np.sin(rot) + offset[int(self.rotation / 90)]]
-            self.sleeping_pos = self.beds[0].origin + self.beds[0].sleeping_pos
-            self.dressing_pos = self.beds[0].origin + [
-                np.cos(rot) * (self.beds[0].width + 0.25 * scale) - np.sin(rot) * self.beds[0].length / 2,
-                np.sin(rot) * (self.beds[0].width + 0.25 * scale) + np.cos(rot) * self.beds[0].length / 2]
-        # beds positioned in bottom left and right corners (considering a rotation of 0)
-        else:
-            self.beds[0].origin = [offset[int(self.rotation / 90) + 1], offset[int(self.rotation / 90)]]
-            bed_offset = width - self.beds[1].width
-            self.beds[1].origin = [bed_offset * np.cos(rot) + offset[int(self.rotation / 90) + 1],
-                                   bed_offset * np.sin(rot) + offset[int(self.rotation / 90)]]
-            self.sleeping_pos = [self.beds[0].origin + self.beds[0].sleeping_pos,
-                                 self.beds[1].origin + self.beds[1].sleeping_pos]
-            self.dressing_pos = [self.beds[0].origin + [
-                np.cos(rot) * (self.beds[0].width + 0.25 * scale) - np.sin(rot) * self.beds[0].length / 2,
-                np.cos(rot) * self.beds[0].length / 2 + np.sin(rot) * (self.beds[0].width + 0.25 * scale)],
-
-                                 self.beds[1].origin + [
-                                     np.cos(rot) * - 0.25 * scale - np.sin(rot) * self.beds[1].length / 2,
-                                     np.sin(rot) * -0.25 * scale + np.cos(rot) * self.beds[1].length / 2]]
-
-        # rotate room
-        if self.rotation == 90 or self.rotation == 270:
-            self.dims[0], self.dims[1] = self.dims[1], self.dims[0]
-        self.furniture += self.beds
+        self.add_furniture(self.beds)
         self.bed_assignment = None
 
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
@@ -60,13 +30,8 @@ class BedRoom(BaseRoom):
     def assign_beds(self):
         return self.sleeping_pos, self.dressing_pos
 
-    def enter_world(self, n, idx=None, locations=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         return [self.entry_point] * n
-
-    def exit_world(self, idx):
-        bool_ix = self.population.find_indexes(idx)
-
-        self.population.motion_mask[bool_ix] = True
 
     def exit_world(self, idx):
         bool_ix = self.population.find_indexes(idx)

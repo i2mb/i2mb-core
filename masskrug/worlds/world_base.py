@@ -5,40 +5,21 @@ from typing import List
 import numpy as np
 
 from masskrug.engine.model import Model
+from masskrug.worlds._area import Area
 
 
-class World(Model):
-    def __init__(self):
-        self._dims = np.array([0, 0])
-        self._origin = np.array([0, 0])
+class World(Model, Area):
+    def __init__(self, dims=None, height=None, width=None, origin=None, rotation=0, scale=1, subareas=None):
+        Area.__init__(self, dims=dims, height=height, width=width, origin=origin, rotation=rotation, scale=scale,
+                      subareas=subareas)
         self.landmarks = []
 
-    @property
-    def dims(self):
-        return self._dims
-
-    @dims.setter
-    def dims(self, v):
-        if v is None:
-            self._dims = np.array([0, 0])
-            return
-
-        self._dims = np.array(v)
-
-    @property
-    def origin(self):
-        return self._origin
-
-    @origin.setter
-    def origin(self, v):
-        if v is None:
-            self._origin = np.array([0, 0])
-            return
-
-        self._origin = np.array(v)
-
-    def enter_world(self, n, idx=None):
-        """The default particle place of entry is a randomly distributed event_location within the space."""
+    def enter_world(self, n, idx=None, arriving_from=None):
+        """The default particle place of entry is a randomly distributed event_location within the space.
+        :param n:
+        :param idx:
+        :param arriving_from: Tells information where the agent is coming form.
+        """
         return np.random.random((n, 2)) * self.dims
 
     def exit_world(self, idx):
@@ -225,10 +206,9 @@ class Scenario:
         return max_used_width, used_height
 
 
-class BlankSpace:
+class BlankSpace(Area):
     def __init__(self, dims):
-        self.origin = [0, 0]
-        self.dims = dims
+        super().__init__(dims)
 
     def is_empty(self):
         return True

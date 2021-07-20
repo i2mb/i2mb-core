@@ -7,34 +7,25 @@ import numpy as np
     :type num_seats: int, optional
 """
 
+
 class DiningRoom(BaseRoom):
     def __init__(self, dims=(4, 3), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
         self.table_assignment = {}
-        x, y = self.origin[0], self.origin[1]
-        width, height = self.dims[0], self.dims[1]
-        offset = [0, 0, height, width, 0]  # array to compensate offset after rotation
-        rot = np.radians(self.rotation)
-        table_width, table_length = (2, 1)
 
-        table_origin = [
-            np.cos(rot) * (width - table_width * scale) * 0.5 - np.sin(rot) * (
-                    height - table_length * scale) * 0.5 + offset[int(self.rotation / 90) + 1],
-            np.sin(rot) * (width - table_width * scale) * 0.5 + np.cos(rot) * (
-                    height - table_length * scale) * 0.5 + offset[int(self.rotation / 90)]]
+        table_dims = np.array([2, 1])
+        table_width, table_length = table_dims
+        rotation = 0
+        dims = self.dims
+        if self.width < self.height:
+            rotation = 90
+            dims = self.dims[::-1]
 
-        self.table = DiningTable(sits=8, rotation=self.rotation, scale=scale, length=table_length, width=table_width,
-                                 origin=table_origin)
+        self.table = DiningTable(sits=8, rotation=rotation, scale=scale, height=table_length, width=table_width,
+                                 origin=[dims / 2 - table_dims / 2])
 
-        # rotate room
-        if self.rotation == 90 or self.rotation == 270:
-            self.dims[0], self.dims[1] = self.dims[1], self.dims[0]
-
-        self.furniture += [self.table]
-
-        self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
-        self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
-        self.get_furniture_grid()
+        self.add_furniture([self.table])
+        # self.get_furniture_grid()
 
     def sit_particles(self, idx):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)

@@ -17,58 +17,29 @@ from ._room import BaseRoom
 class Bathroom(BaseRoom):
     def __init__(self, guest=0, dims=(3, 3), scale=1, **kwargs):
         super().__init__(dims=dims, scale=scale, **kwargs)
-        width, height = self.dims[0], self.dims[1]
-        offset = [0, 0, height, width, 0]
-        rot = np.radians(self.rotation)
 
         self.occupied = False
         self.tasks = {}
 
         self.guest = guest
         if guest == 1:
-            self.bathtub = Bathtub(self.rotation, scale=scale)
-            # bathtub positioned in bottom left corner
-            self.bathtub.origin = [offset[int(self.rotation / 90) + 1], offset[int(self.rotation / 90)]]
+            self.bathtub = Bathtub(rotation=90, origin=[0., 0.], scale=scale)
 
         elif guest == 0:
-            self.bathtub = Shower(self.rotation, scale=scale)
-            # shower positioned in bottom left corner
-            self.bathtub.origin = [offset[int(self.rotation / 90) + 1], offset[int(self.rotation / 90)]]
+            self.bathtub = Shower(origin=[0., 0.], scale=scale)
 
         else:
             self.bathtub = None
 
-        self.toilet = Toilet(self.rotation, scale=scale)
-        # toilet positioned in bottom right corner
-        toilet_offset = width - self.toilet.width * 1.5
-        self.toilet.origin = [toilet_offset * np.cos(rot) + offset[int(self.rotation / 90) + 1],
-                              toilet_offset * np.sin(rot) + offset[int(self.rotation / 90)]]
+        self.toilet = Toilet(rotation=180, origin=[0.2, self.height - 0.75])
+        self.sink = Sink(rotation=90, origin=[(self.width - 1) / 2 + 0.7, self.height - 0.5], scale=scale)
 
-        self.sink = Sink(self.rotation, scale=scale)
-        # sink positioned on right side of room
-        sink_offset = width - self.sink.width
-        self.sink.origin = [
-            sink_offset * np.cos(rot) + offset[int(self.rotation / 90) + 1] - (height / 2) * np.sin(rot),
-            sink_offset * np.sin(rot) + offset[int(self.rotation / 90)] + (height / 2) * np.cos(rot)]
-
-        # rotate room
-        if self.rotation == 90 or self.rotation == 270:
-            self.dims[0], self.dims[1] = self.dims[1], self.dims[0]
-
-        self.furniture += [self.sink, self.toilet, self.bathtub]
-
+        self.add_furniture([self.sink, self.toilet, self.bathtub])
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
 
-        # target positions/areas for step method
-        self.sink_area = self.get_sink_area()
-        self.go_toilet_pos = self.toilet.sitting_pos + np.array(
-            [-np.sin(rot) * self.toilet.length / 2, np.cos(rot) * self.toilet.length / 2])
-        self.go_shower_pos = self.bathtub.showering_pos + np.array(
-            [np.cos(rot) * self.bathtub.width / 2, -np.sin(rot) * self.bathtub.width / 2])
-
-    def enter_world(self, n, idx=None, locations=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         self.occupied = True
         return [self.entry_point] * n
 
@@ -93,7 +64,7 @@ class Bathroom(BaseRoom):
             x1 = x0 + self.sink.width
         if self.rotation == 90:
             y1 = min(y0, y1)
-            y0 = y1 - self.sink.length
+            y0 = y1 - self.sink.height
         if self.rotation == 270:
             y0 = max(y0, y1)
             y1 = y0 + self.sink.width

@@ -17,10 +17,9 @@ from masskrug.worlds.furniture.door import DOOR_WIDTH
 
 
 class Apartment(CompositeWorld):
-    def __init__(self, num_residents=None, rotation=0, scale=1, dims=(15, 7), floor_number=0, **kwargs):
-        super().__init__(dims=dims, **kwargs)
-        self.dims = self.dims * scale
-        self.rotation = rotation
+    def __init__(self, num_residents=None, rotation=0, dims=(15, 7), floor_number=0, **kwargs):
+        super().__init__(dims=dims, rotation=rotation, **kwargs)
+
         if num_residents is None:
             num_residents = 1
 
@@ -34,6 +33,7 @@ class Apartment(CompositeWorld):
 
         self.floor_number = floor_number
 
+        scale = self.scale
         self.__build_living_room(num_residents, scale)
         self.__build_corridor(scale)
         self.__build_bedrooms(num_residents, scale)
@@ -49,9 +49,8 @@ class Apartment(CompositeWorld):
             self.kitchen,
             self.dining_room
         ])
-        #
-        self.add_regions(self.bedrooms)
 
+        self.add_regions(self.bedrooms)
         self.__connect_rooms()
 
     def __build_dining_room(self, scale):
@@ -62,9 +61,6 @@ class Apartment(CompositeWorld):
     def __build_living_room(self, num_residents, scale):
         self.living_room = LivingRoom(num_seats=num_residents + 2, origin=(0, 0), scale=scale,
                                       rotation=0)
-
-        # offset = self.calculate_offset(self.living_room.dims)
-        # self.living_room.origin = offset
 
     def __build_corridor(self, scale):
         length = max(self.dims) - min(self.living_room.dims)
@@ -104,9 +100,9 @@ class Apartment(CompositeWorld):
             entry += mask
             mask = (entry > self.corridor.dims) * (self.corridor.dims - (entry - self.corridor.dims))
             entry += mask
-            self.corridor.set_room_entries(entry, id(room))
+            self.corridor.set_room_entries(entry, room)
 
-        self.corridor.set_room_entries(self.corridor.entry, id(self))
+        self.corridor.set_room_entries(self.corridor.entry_point, self)
 
     def get_entrance_sub_region(self):
         return self.corridor
