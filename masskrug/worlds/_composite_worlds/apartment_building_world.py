@@ -44,11 +44,11 @@ class ApartmentBuildingWorld(CompositeWorld):
         self.public_corridors = np.array(self.public_corridors).ravel()
         self.corridor_entries = []
         for c, b in zip(self.public_corridors, self.population.building):
-            self.corridor_entries += [(b.stairs).enter_world(0, idx=[], locations=np.array([id(c)])).ravel()]
+            self.corridor_entries += [(b.stairs).enter_world(0, idx=[], arriving_from=np.array([id(c)])).ravel()]
         self.corridor_entries = np.array(self.corridor_entries)
         self.apartment_entries = []
         for c, a in zip(self.public_corridors, self.population.home):
-            self.apartment_entries += [c.enter_world(0, idx=[], locations=np.array([id(a.corridor)])).ravel()]
+            self.apartment_entries += [c.enter_world(0, idx=[], arriving_from=np.array([id(a.corridor)])).ravel()]
         self.apartment_entries = np.array(self.apartment_entries)
 
         # apartment entries

@@ -73,7 +73,7 @@ class Restaurant(CompositeWorld, PublicSpace):
             self.table_assignment.update(dict.fromkeys(idx[start:start + end], table))
             start += end
 
-    def enter_world(self, n, idx=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[:] = False
 

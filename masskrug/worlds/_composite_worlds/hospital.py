@@ -23,7 +23,7 @@ class Hospital(CompositeWorld):
         self.bed_positions = np.array([c[::-1] for c in product(y_pos, x_pos)])
         self.bed_positions[:, 1] = self.dims[1] - self.bed_positions[:, 1]
 
-    def enter_world(self, n, **kwargs):
+    def enter_world(self, n, idx=None, arriving_from=None):
         self.population.remain[:] = True
         self.population.motion_mask[:] = False
 

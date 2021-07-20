@@ -19,7 +19,7 @@ class Graveyard(CompositeWorld):
         self.lot_positions = np.array([c[::-1] for c in product(y_pos, x_pos)])
         self.lot_positions[:, 1] = self.dims[1] - self.lot_positions[:, 1]
 
-    def enter_world(self, n, idx=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         self.population.remain[:] = True
         self.population.motion_mask[:] = False
         lots = self.lot_positions[self.current_lot: self.current_lot + n]

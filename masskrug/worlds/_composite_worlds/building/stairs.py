@@ -34,7 +34,7 @@ class Stairs(CompositeWorld):
         self.__room_entries += room_entry
         self.__adjacent_rooms += id
 
-    def enter_world(self, n, idx=None, locations=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         if idx is None:
             return [self.entry_point] * n
         entries, rooms = np.array(self.__room_entries), np.array(self.__adjacent_rooms)

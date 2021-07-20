@@ -61,7 +61,7 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
         self.seat_assignments.update(new_assignments)
         self.population.position[new_idx] = self.seat_positions[list(new_assignments.values()), :]
 
-    def enter_world(self, n, idx=None):
+    def enter_world(self, n, idx=None, arriving_from=None):
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[:] = False
 
