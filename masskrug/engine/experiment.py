@@ -96,7 +96,7 @@ class Experiment:
             os.makedirs("/tmp/sct", exist_ok=True)
 
     def get_experiment_dir(self):
-        return os.path.join(self.data_dir, self.name, self.scenario_name)
+        return os.path.join(self.data_dir, self.config_name, self.name, self.scenario_name)
 
     def get_base_name(self):
         return f"{self.name}_{self.scenario_name}_i2bm_sim_data_{self.run_id:04}"
@@ -137,7 +137,7 @@ class Experiment:
         return npz_file_exists and hdf_file_exists and results_hdf_file_exists
 
     def write_meta_data(self):
-        meta_data_file_name = os.path.join(self.data_dir, "meta_data")
+        meta_data_file_name = os.path.join(self.get_experiment_dir(), "meta_data")
         if os.path.exists(meta_data_file_name):
             return
 
