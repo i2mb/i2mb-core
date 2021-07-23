@@ -7,7 +7,8 @@ from masskrug.pathogen import UserStates, SymptomLevels
 class GetTested(Model):
     def __init__(self, population, delay=2, test_to_leave=False, test_household=False,
                  delay_test=5,
-                 quarantine_duration=5):
+                 quarantine_duration=5, share_test_result=1.):
+        self.share_test_result = share_test_result
         self.delay_test = delay_test
         self.quarantine = quarantine_duration
         self.test_household = test_household
@@ -34,8 +35,9 @@ class GetTested(Model):
         if test_results.any():
             self.test_result_current[test_results] = True
 
-            # Check if we have to report the positive test to the health authorities
-            report_tests = test_results & ~self.population.isolated.ravel()
+            # Check if we have to, and want to, report the positive test to the health authorities
+            share_results = np.random.random((len(self.population), 1)) <= self.share_test_result
+            report_tests = test_results & ~self.population.isolated.ravel() & share_results
             if hasattr(self.population, "positive_test_report"):
                 self.population.positive_test_report[report_tests] = True
 
