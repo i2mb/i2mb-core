@@ -22,7 +22,6 @@ class Bed(BaseFurniture):
         self.cover_opposite = np.array([width, height - 0.45 - 0.2])
         self.points.extend([self.cover_origin, self.cover_opposite])
 
-
     def generate_bed_parts(self):
         self.points.extend([])
 

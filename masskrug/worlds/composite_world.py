@@ -28,7 +28,6 @@ class CompositeWorld(World):
         self.regions = []
         super().__init__(dims, origin=origin, rotation=rotation, scale=scale, subareas=self.regions)
 
-        self.parent = None
         self.waiting_room = waiting_room
         self.containment = containment
         self.region_origins = np.array([])
@@ -41,6 +40,7 @@ class CompositeWorld(World):
             self.load_map(map_file)
 
         if population is None:
+            self.population = None
             self.location = np.array([])
             self.position = np.array([])
             self.gravity = np.array([])
@@ -121,7 +121,7 @@ class CompositeWorld(World):
     def enter_region(self, idx, region, departed_from_regions):
         idx_ = idx
         region = region.get_entrance_sub_region()
-        if hasattr(region, 'population'):
+        if region.population is not None:
             old_idx = region.population.index
             idx = np.union1d(old_idx, idx)
 

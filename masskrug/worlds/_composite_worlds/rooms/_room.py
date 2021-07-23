@@ -18,6 +18,8 @@ import numpy as np
 class BaseRoom(CompositeWorld):
     def __init__(self, dims, entry=0.5, scale=1, **kwargs):
         self.furniture = []
+        self.furniture_origins = []
+        self.furniture_upper = []
 
         super().__init__(dims=dims, scale=scale, **kwargs)
         self.register_sub_areas(self.furniture)
@@ -33,16 +35,15 @@ class BaseRoom(CompositeWorld):
         self.points.append(self.entry_point)
 
         self.door = Door(0, self.entry, scale=scale)
-        self.furniture.append(self.door)
-        self.points.extend([p for f in self.furniture for p in [f.origin, f.opposite]])
-        self.furniture_origins = []
-        self.furniture_upper = []
+        self.add_furniture([self.door])
 
     def add_furniture(self, new_furniture):
-        self.points.extend([p for f in new_furniture for p in [f.origin, f.opposite]])
-        self.furniture.extend(new_furniture)
-        self.furniture_origins.extend([f.origin for f in new_furniture])
-        self.furniture_origins.extend([f.opposite for f in new_furniture])
+        for f in new_furniture:
+            self.points.extend([p for p in [f.origin, f.opposite]])
+            self.furniture.append(f)
+            self.furniture_origins.append(f.origin)
+            self.furniture_upper.append(f.opposite)
+            f.parent = self
 
     def draw_world(self, ax=None, origin=(0, 0), **kwargs):
         bbox = kwargs.get("bbox", False)

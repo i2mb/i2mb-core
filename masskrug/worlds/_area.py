@@ -62,6 +62,8 @@ class Area(metaclass=ExitInit):
         self.rotation = rotation
         self.origin = origin
 
+        self.parent = None
+
     @property
     def opposite(self):
         return self.__opposite

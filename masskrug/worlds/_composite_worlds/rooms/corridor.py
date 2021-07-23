@@ -54,9 +54,14 @@ class Corridor(BaseRoom):
     def step(self, t):
         if self.public:
             return
+
         if not hasattr(self, "population"):
             return
+
         if not self.population:
+            return
+
+        if not hasattr(self.population, "target"):
             return
 
         no_target = np.isnan(self.population.target)

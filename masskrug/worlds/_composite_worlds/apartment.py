@@ -53,6 +53,13 @@ class Apartment(CompositeWorld):
         self.add_regions(self.bedrooms)
         self.__connect_rooms()
 
+        self.beds = self.__get_beds()
+        self.bed_assignment = []
+        self.agent_bedroom = []
+
+        # People that actually live in this house
+        self.inhabitants = None
+
     def __build_dining_room(self, scale):
         self.dining_room = DiningRoom(origin=(self.living_room.width, self.kitchen.origin[1]),
                                       dims=[self.kitchen.height, self.kitchen.origin[0] - self.living_room.width],
@@ -106,4 +113,26 @@ class Apartment(CompositeWorld):
 
     def get_entrance_sub_region(self):
         return self.corridor
+
+    def assign_beds(self):
+        self.beds = np.array([bed for bed in self.beds[:len(self.inhabitants)]])
+        self.agent_bedroom = np.array([bed.parent for bed in self.beds])
+        self.bed_assignment = self.inhabitants.index[:len(self.inhabitants)].copy().reshape(-1, 1)
+        for room in self.bedrooms:
+            room.assign_beds(self.bed_assignment[self.agent_bedroom == room])
+
+    def move_home(self, population):
+        self.inhabitants = population
+        self.assign_beds()
+
+    def __get_beds(self):
+        beds = []
+        for room in self.bedrooms:
+            beds.extend(room.beds)
+
+        return np.array(beds)
+
+    def step(self, t):
+        for r in self.regions:
+            r.step(t)
 
