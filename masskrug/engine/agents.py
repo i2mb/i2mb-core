@@ -4,7 +4,7 @@ import numpy as np
 
 
 def vectorized(fn):
-    ParticleList.particle_properties.append(fn.__name__)
+    AgentList.particle_properties.append(fn.__name__)
     return fn
 
 
@@ -34,9 +34,9 @@ class ArrayView:
         return self.__cv == other
 
 
-class ParticleListView:
-    def __init__(self, particles, index):
-        self.__source = particles
+class AgentListView:
+    def __init__(self, agents, index):
+        self.__source = agents
         self.__index = index
         self.__len = len(index)
 
@@ -56,7 +56,7 @@ class ParticleListView:
         return self.__source.getitem(self.index)[item]
 
     def __getattribute__(self, item):
-        if item not in ParticleList.particle_properties:
+        if item not in AgentList.particle_properties:
             return object.__getattribute__(self, item)
 
         attribute = self.__source.__getattribute__(item)
@@ -67,17 +67,17 @@ class ParticleListView:
         return (self.__index.reshape((-1, 1)) == idx.ravel()).any(axis=1).ravel()
 
 
-class ParticleList:
+class AgentList:
     particle_properties = []
     list_properties = []
 
-    def __init__(self, particles=0):
-        if not isinstance(particles, int):
-            self.index = np.array(particles)
+    def __init__(self, agents=0):
+        if not isinstance(agents, int):
+            self.index = np.array(agents)
         else:
-            self.index = np.array(range(particles))
+            self.index = np.array(range(agents))
 
-        self.__particles = np.array([Particle(id_) for id_ in self.index])
+        self.__agents = np.array([Agent(id_) for id_ in self.index])
 
         self.__view = False
 
@@ -108,43 +108,43 @@ class ParticleList:
         return len(self.index)
 
     def __iter__(self):
-        return iter(self.__particles)
+        return iter(self.__agents)
 
     def getitem(self, item):
-        return self.__particles[item]
+        return self.__agents[item]
 
     def __getitem__(self, item):
-        """:return Particle item, or ParticleList view with selected particles."""
+        """:return Agent item, or AgentList view with selected agents."""
         if isinstance(item, int) or isinstance(item, np.integer):
-            return self.__particles[item]
+            return self.__agents[item]
 
-        view = ParticleListView(self, self.index[item])
+        view = AgentListView(self, self.index[item])
         return view
 
     def __getattribute__(self, item):
-        if item in ParticleList.particle_properties and self.__view:
+        if item in AgentList.particle_properties and self.__view:
             return object.__getattribute__(self, item)[self.index]
 
         return object.__getattribute__(self, item)
 
     def add_property(self, prop, values, l_property=False):
         if self.__view:
-            raise RuntimeWarning("Adding properties to ParticleList views si not supported.")
+            raise RuntimeWarning("Adding properties to AgentList views si not supported.")
 
         object.__setattr__(self, prop, values)
 
         if l_property:
-            ParticleList.list_properties.append(prop)
+            AgentList.list_properties.append(prop)
             return
 
-        ParticleList.particle_properties.append(prop)
+        AgentList.particle_properties.append(prop)
 
         # If values is an numpy array, we want to keep a pointer.
-        for p, v in zip(self.__particles, values):
+        for p, v in zip(self.__agents, values):
             object.__setattr__(p, prop, v)
 
 
-class Particle:
+class Agent:
     def __init__(self, id_):
         self.__id = id_
 
