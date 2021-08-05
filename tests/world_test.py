@@ -6,14 +6,14 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib.animation import FuncAnimation
 
-from masskrug.engine.core import Engine
-from masskrug.engine.agents import AgentList
-from masskrug.interactions.digital_contact_tracing import RegionContactTracing
-from masskrug.interventions.contact_isolation import ContactIsolationIntervention
-from masskrug.motion.random_motion import RandomMotion
-from masskrug.pathogen.infection import RegionCoronaVirus
-from masskrug.utils.visualization.world_view import draw_world
-from masskrug.worlds.composite_world import CompositeWorld
+from i2mb.engine.core import Engine
+from i2mb.engine.agents import AgentList
+from i2mb.interactions.digital_contact_tracing import RegionContactTracing
+from i2mb.interventions.contact_isolation import ContactIsolationIntervention
+from i2mb.motion.random_motion import RandomMotion
+from i2mb.pathogen.infection import RegionCoronaVirus
+from i2mb.utils.visualization.world_view import draw_world
+from i2mb.worlds.composite_world import CompositeWorld
 
 CM = rcParams["axes.prop_cycle"].by_key()['color']
 

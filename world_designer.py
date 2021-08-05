@@ -4,13 +4,13 @@ from importlib import import_module
 import matplotlib.pyplot as plt
 import numpy as np
 
-from masskrug.engine.agents import AgentList
+from i2mb.engine.agents import AgentList
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='Helps design new worlds.')
     parser.add_argument("--world", help="Specify the world's class name.")
-    module_name = "masskrug.worlds"
+    module_name = "i2mb.worlds"
 
     args = parser.parse_args()
     # world_name = args.world

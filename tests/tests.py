@@ -1,5 +1,5 @@
-from masskrug.worlds.square import SquareWorld
-from masskrug.engine.agents import AgentList
+from i2mb.worlds.square import SquareWorld
+from i2mb.engine.agents import AgentList
 
 if __name__ == "__main__":
     pl = AgentList(5)

@@ -20,19 +20,20 @@ from unittest import TestCase
 
 import matplotlib.pyplot as plt
 import numpy as np
-from masskrug.engine.core import Engine
+from i2mb.engine.core import Engine
 
-from masskrug.engine.agents import AgentList
-from masskrug.motion.random_motion import RandomMotion
-from masskrug.utils import global_time
-from masskrug.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
+from i2mb.engine.agents import AgentList
+from i2mb.motion.random_motion import RandomMotion
+from i2mb.utils import global_time
+from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
 from matplotlib.animation import FuncAnimation
 
-global_time.ticks_scalar = 60 / 5* 24
+global_time.ticks_scalar = 60 / 5 * 24
 
 
 class WorldBuilder:
-    def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000, update_callback=None):
+    def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000,
+                 update_callback=None):
         if update_callback is None:
             update_callback = self.__update_callback
 

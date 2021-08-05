@@ -25,17 +25,17 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-from masskrug.engine.core import Engine
-from masskrug.interactions.digital_contact_tracing import ContactTracing
-from masskrug.interventions.contact_isolation import ContactIsolationIntervention
-from masskrug import NullModel as NM
-from masskrug.engine.agents import AgentList
-from masskrug.motion.random_motion import RandomMotion
-from masskrug.pathogen.base_pathogen import UserStates
-from masskrug.pathogen.infection import CoronaVirus
-from masskrug.utils import global_time
-from masskrug.worlds import SquareWorld, Home
-from masskrug.worlds.g_pylons import GravityPylons
+from i2mb.engine.core import Engine
+from i2mb.interactions.digital_contact_tracing import ContactTracing
+from i2mb.interventions.contact_isolation import ContactIsolationIntervention
+from i2mb import NullModel as NM
+from i2mb.engine.agents import AgentList
+from i2mb.motion.random_motion import RandomMotion
+from i2mb.pathogen.base_pathogen import UserStates
+from i2mb.pathogen.infection import CoronaVirus
+from i2mb.utils import global_time
+from i2mb.worlds import SquareWorld, Home
+from i2mb.worlds.g_pylons import GravityPylons
 
 CM = rcParams["axes.prop_cycle"].by_key()['color']
 LEGEND_LABELS = [u.name for u in UserStates]

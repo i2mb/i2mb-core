@@ -17,9 +17,9 @@ from functools import partial
 from unittest import TestCase
 
 import numpy as np
-from masskrug.behaviours.sleep import SleepBehaviour
-from masskrug.utils import global_time
-from masskrug.worlds import BedRoom, Apartment
+from i2mb.behaviours.sleep import SleepBehaviour
+from i2mb.utils import global_time
+from i2mb.worlds import BedRoom, Apartment
 from matplotlib import pyplot as plt
 from world_tester import WorldBuilder
 

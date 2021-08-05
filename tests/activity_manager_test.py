@@ -15,8 +15,8 @@
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from unittest import TestCase
 
-from masskrug.utils import global_time
-from masskrug.worlds import BedRoom
+from i2mb.utils import global_time
+from i2mb.worlds import BedRoom
 from tests.world_tester import WorldBuilder
 
 global_time.ticks_scalar = 60 * 24
