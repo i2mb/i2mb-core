@@ -7,7 +7,7 @@ from matplotlib import rcParams
 from matplotlib.animation import FuncAnimation
 
 from masskrug.engine.core import Engine
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.interactions.digital_contact_tracing import RegionContactTracing
 from masskrug.interventions.contact_isolation import ContactIsolationIntervention
 from masskrug.motion.random_motion import RandomMotion
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     TIME_SCALAR = 18
 
     # Setup engine models
-    population = ParticleList(NUM_PARTICLES)
+    population = AgentList(NUM_PARTICLES)
 
     # world = SquareWorld(WORLD_BOX, population)
     l = WORLD_BOX[0] / 2

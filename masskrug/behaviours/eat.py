@@ -1,12 +1,12 @@
 import numpy as np
 from masskrug import Model
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.utils import global_time
 from functools import partial
 
 
 class EatBehaviour(Model):
-    def __init__(self, population: ParticleList, eating_duration, eating_start, prepare_duration):
+    def __init__(self, population: AgentList, eating_duration, eating_start, prepare_duration):
         self.eating_start = eating_start
         self.eating_duration = eating_duration
         self.preparing_duration = prepare_duration

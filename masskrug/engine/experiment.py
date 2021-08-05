@@ -18,13 +18,13 @@ from pprint import pprint
 
 import numpy as np
 import pandas as pd
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 
 
 class Experiment:
     def __init__(self, run_id, config):
         self.config = config
-        self.population = ParticleList(config["population_size"])
+        self.population = AgentList(config["population_size"])
         self.run_id = int(run_id)
         self.data_dir = self.config.get("data_dir", "./")
         self.scenario_name = config.get("scenario", {}).get("name", "test")

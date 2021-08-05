@@ -15,7 +15,7 @@ class World(Model, Area):
         self.landmarks = []
 
     def enter_world(self, n, idx=None, arriving_from=None):
-        """The default particle place of entry is a randomly distributed event_location within the space.
+        """The default agent place of entry is a randomly distributed event_location within the space.
         :param n:
         :param idx:
         :param arriving_from: Tells information where the agent is coming form.

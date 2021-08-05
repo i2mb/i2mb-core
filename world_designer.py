@@ -4,7 +4,7 @@ from importlib import import_module
 import matplotlib.pyplot as plt
 import numpy as np
 
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 
 
 if __name__ == "__main__":
@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     mod = import_module(module_name)
     World = getattr(mod, world_name)
-    population = ParticleList(34)
+    population = AgentList(34)
     for rot in [0,
                 90, 180, 270
                 ]:

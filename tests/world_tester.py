@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from masskrug.engine.core import Engine
 
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.motion.random_motion import RandomMotion
 from masskrug.utils import global_time
 from masskrug.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
@@ -50,7 +50,7 @@ class WorldBuilder:
             world_kwargs["rotation"] = rotation
             self.worlds.append(world_cls(**world_kwargs))
 
-        self.population = ParticleList(10)
+        self.population = AgentList(10)
         self.universe = CompositeWorld(population=self.population, regions=self.worlds, origin=[0, 0])
         self.universe.dims += 1
 

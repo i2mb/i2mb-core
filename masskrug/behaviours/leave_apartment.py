@@ -1,11 +1,11 @@
 import numpy as np
 from masskrug import Model
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.utils import global_time
 
 
 class LeaveBehaviour(Model):
-    def __init__(self, population: ParticleList, outside_duration, outside_start):
+    def __init__(self, population: AgentList, outside_duration, outside_start):
         self.outside_start = outside_start
         self.outside_duration = outside_duration
         self.population = population

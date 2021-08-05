@@ -4,7 +4,7 @@ from functools import partial
 import numpy as np
 
 from masskrug.interactions.contact_list import ContactList
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.utils.spatial_utils import distance, contacts_within_radius, ravel_index_triu_nd, region_ravel_multi_index
 from masskrug.utils import cache_manager
 from .base_pathogen import Pathogen, SymptomLevels, UserStatesLegacy as UserStates
@@ -24,7 +24,7 @@ class CoronaVirus(Pathogen):
     :param icu_beds:
     """
 
-    def __init__(self, radius, exposure_time, population: ParticleList, duration_distribution=None,
+    def __init__(self, radius, exposure_time, population: AgentList, duration_distribution=None,
                  incubation_distribution=None, asymptomatic_p=0.01, death_rate=None, icu_beds=None):
 
         super().__init__(population)
@@ -64,7 +64,7 @@ class CoronaVirus(Pathogen):
                 infectious_state = np.random.choice([UserStates.infected, UserStates.asymptomatic], num_p0s,
                                                     p=[1 - asymptomatic, asymptomatic])
             else:
-                # We understand numbers greater than one as the number of asymptomatic particles.
+                # We understand numbers greater than one as the number of asymptomatic agents.
                 asymptomatic = int(asymptomatic)
 
         elif isinstance(asymptomatic, bool):
@@ -206,7 +206,7 @@ class CoronaVirus(Pathogen):
 
 
 class RegionCoronaVirus(CoronaVirus):
-    def __init__(self, radius, exposure_time, population: ParticleList, **kwargs):
+    def __init__(self, radius, exposure_time, population: AgentList, **kwargs):
         super().__init__(radius, exposure_time, population, **kwargs)
         self.contact_matrix = ContactMatrix(len(population))
 
@@ -241,7 +241,7 @@ class RegionCoronaVirus(CoronaVirus):
 
         sufficient_contact = self.contact_matrix.get_sufficient_contact(self.exposure_time)
 
-        # Remove contacts between infected particles
+        # Remove contacts between infected agents
         sc_between_infected = pandemic_active[sufficient_contact[:, 0], 0] & pandemic_active[
             sufficient_contact[:, 1], 0]
         sufficient_contact = sufficient_contact[~sc_between_infected]
@@ -256,8 +256,8 @@ class RegionCoronaVirus(CoronaVirus):
         self.infect_particles(new_infected_ids, t, asymptomatic=True)
         vector_ids = contacts[vectors]
 
-        # Since a particle can be in proximity of two or more infected particles, we equally distribute blame among
-        # the infected particles.
+        # Since a particle can be in proximity of two or more infected agents, we equally distribute blame among
+        # the infected agents.
         vector_matrix = ((sufficient_contact[:, 0] == vector_ids[:, None]) |
                          (sufficient_contact[:, 1] == vector_ids[:, None]))
         new_infected_matrix = ((sufficient_contact[:, 0] == new_infected_ids[:, None]) |
@@ -273,7 +273,7 @@ class RegionCoronaVirus(CoronaVirus):
 
 
 class RegionCoronaVirusExposureWindow(RegionCoronaVirus):
-    def __init__(self, radius, exposure_time, population: ParticleList, susceptibility_window, **kwargs):
+    def __init__(self, radius, exposure_time, population: AgentList, susceptibility_window, **kwargs):
 
         super().__init__(radius, exposure_time, population, **kwargs)
         self.susceptibility_window = susceptibility_window

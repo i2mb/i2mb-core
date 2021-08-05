@@ -29,7 +29,7 @@ from masskrug.engine.core import Engine
 from masskrug.interactions.digital_contact_tracing import ContactTracing
 from masskrug.interventions.contact_isolation import ContactIsolationIntervention
 from masskrug import NullModel as NM
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.motion.random_motion import RandomMotion
 from masskrug.pathogen.base_pathogen import UserStates
 from masskrug.pathogen.infection import CoronaVirus
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     unique_contacts_history = {}
 
     # Setup engine models
-    population = ParticleList(NUM_PARTICLES)
+    population = AgentList(NUM_PARTICLES)
 
     # world = SquareWorld(WORLD_BOX, population)
     world = Home(dims=(6, 8), population=population, always_on=False, gain=10)

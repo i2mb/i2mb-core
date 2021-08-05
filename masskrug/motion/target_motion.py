@@ -1,12 +1,12 @@
 import numpy as np
 
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.motion.base_motion import Motion
 from masskrug.utils import cache_manager
 
 
 class MoveToTarget(Motion):
-    def __init__(self, world, population: ParticleList, speed=0.7):
+    def __init__(self, world, population: AgentList, speed=0.7):
         super().__init__(world, population)
         self.radius = 0
         n = len(population)

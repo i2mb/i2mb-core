@@ -112,7 +112,7 @@ class ApartmentBuildingWorld(CompositeWorld):
                 self.population.target[new_target] = np.array(
                     [i.entry_point for i in self.population.location[new_target]])
 
-            # move particles from entry point to corridor
+            # move agents from entry point to corridor
             switch = at_entry_point & ids
             if switch.any():
                 for c in set(self.population.home[switch]):

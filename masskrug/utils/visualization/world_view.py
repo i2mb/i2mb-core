@@ -13,5 +13,5 @@ def draw_world(world, ax=None, padding=5):
     ax.set_xlim(world.origin[0] - padding, world.dims[0] + padding)
     ax.set_ylim(world.origin[1] - padding, world.dims[1] + padding)
 
-    # Draw particles
+    # Draw agents
     return ax.scatter(*world.get_absolute_positions().T, s=16)

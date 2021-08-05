@@ -1,11 +1,11 @@
 import numpy as np
 from masskrug import Model
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.utils import global_time
 
 
 class BathBehaviour(Model):
-    def __init__(self, population: ParticleList, bath_duration, short_duration, bath_start):
+    def __init__(self, population: AgentList, bath_duration, short_duration, bath_start):
         self.bathing_start = bath_start
         self.bath_duration = bath_duration
         self.short_duration = short_duration

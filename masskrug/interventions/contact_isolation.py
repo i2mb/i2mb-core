@@ -28,7 +28,7 @@ class ContactIsolationIntervention(Intervention):
         self.__requesters = {}
         self.isolated_by = np.zeros((len(population), 1), dtype=int)
 
-        # We keep track of isolation of non infectious particles
+        # We keep track of isolation of non infectious agents
         self.isolated_fp = np.zeros((len(population), 1), dtype=int)
         self.isolation_time = np.zeros((len(population), 1), dtype=int)
         self.time_in_isolation = np.zeros((len(population), 1), dtype=int)
@@ -57,12 +57,12 @@ class ContactIsolationIntervention(Intervention):
         return code
 
     def step(self, t):
-        # release particles
+        # release agents
         self.release_particles(t)
 
         self.hh_contacted = 0
 
-        # Remove deceased particles from the contact_isolated list.
+        # Remove deceased agents from the contact_isolated list.
         alive = (self.population.state != UserStates.deceased)
         self.isolated[~alive] = False
         self.isolated_by[~alive] = 0

@@ -1,6 +1,6 @@
 import numpy as np
 
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug import Model
 from masskrug.utils.spatial_utils import distance
 from .world_base import World, Landmark

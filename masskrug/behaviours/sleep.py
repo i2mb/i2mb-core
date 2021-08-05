@@ -1,12 +1,12 @@
 import numpy as np
 
 from masskrug import Model
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.utils import global_time
 
 
 class SleepBehaviour(Model):
-    def __init__(self, population: ParticleList, sleep_duration, sleep_midpoint):
+    def __init__(self, population: AgentList, sleep_duration, sleep_midpoint):
         self.sleep_midpoint = sleep_midpoint
         self.sleep_duration = sleep_duration
         self.population = population

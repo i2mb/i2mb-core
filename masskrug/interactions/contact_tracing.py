@@ -10,12 +10,12 @@ from .contact_matrix import ContactMatrix
 class ContactTracing(Interaction):
     """
     Base implementation of technology based contact tracing in a particle population. This module adds the property
-    `contact_list` to the population ParticleList.
+    `contact_list` to the population AgentList.
 
-    :param radius: Distance between particles to consider a valid contact.
+    :param radius: Distance between agents to consider a valid contact.
     :type radius: int
-    :param population: Particle population.
-    :type population: ParticleList
+    :param population: Agent population.
+    :type population: AgentList
     :param track_time: Measured in steps, track_time represents the time to consider a connection valid.
     :type track_time: int, optional
     :param duration: Measured in steps, duration is the minimal length of time required to consider recording a
@@ -24,7 +24,7 @@ class ContactTracing(Interaction):
      coverage are selected at random.
     :param false_positives: Rate of false positives. This parameter simulates the possibility of the underlying
      technology to emmit a false positive. The model uses the area between an outer radius and the `radius`
-     parameter to filter false positive particles. The outer radius is calculated using the `radius` parameter and
+     parameter to filter false positive agents. The outer radius is calculated using the `radius` parameter and
      the `fp_radius` parameter.
     :param false_negatives: Rate of false negatives. This parameter simulates the possibility of hte underlying
      technology failing to record a valid connection.
@@ -62,7 +62,7 @@ class ContactTracing(Interaction):
 
     @cache_manager
     def distances(self):
-        """Computes the distance between all particles in the population."""
+        """Computes the distance between all agents in the population."""
         positions = self.population.position
         return distance(positions)
 

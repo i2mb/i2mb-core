@@ -1,11 +1,11 @@
 import numpy as np
 
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from .world_base import World
 
 
 class SquareWorld(World):
-    def __init__(self, dims, population: ParticleList):
+    def __init__(self, dims, population: AgentList):
         super().__init__()
         self._dims = dims
         self.population = population

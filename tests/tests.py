@@ -1,11 +1,11 @@
 from masskrug.worlds.square import SquareWorld
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 
 if __name__ == "__main__":
-    pl = ParticleList(5)
+    pl = AgentList(5)
     for p in pl:
-        print(f"Particle id: {p.id}")
+        print(f"Agent id: {p.id}")
 
-    pl = ParticleList([1, 2, 5, 10])
+    pl = AgentList([1, 2, 5, 10])
     for p in pl:
-        print(f"Particle id: {p.id}")
+        print(f"Agent id: {p.id}")

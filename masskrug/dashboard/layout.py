@@ -2,8 +2,8 @@ import dash_bootstrap_components as dbc
 import dash_html_components as html
 
 """
-1. Percentage of the population with contact tracing list, i.e., as the population is generated, not all particles 
- are given the contact tracing property, and thus only contact tracing is possible between particles with the property. 
+1. Percentage of the population with contact tracing list, i.e., as the population is generated, not all agents 
+ are given the contact tracing property, and thus only contact tracing is possible between agents with the property. 
 2. Life time of contacts on each particle's list 
 3. Time to isolation 
 4. Probability of successful contact exchange => to control false negative rate. 

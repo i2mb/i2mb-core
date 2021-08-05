@@ -1,7 +1,7 @@
 from collections import Counter
 
 import numpy as np
-from masskrug.engine.particle import ParticleList
+from masskrug.engine.agents import AgentList
 from masskrug.pathogen import UserStates
 from masskrug.pathogen.base_pathogen import Pathogen, SymptomLevels
 from masskrug.utils.spatial_utils import region_ravel_multi_index, contacts_within_radius
@@ -22,7 +22,7 @@ class RegionVirusDynamicExposure(Pathogen):
         function(population, time)
     """
 
-    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: AgentList,
                  radius=5,
                  illness_duration_distribution=None,
                  infectious_duration_pso_distribution=None,
@@ -119,7 +119,7 @@ class RegionVirusDynamicExposure(Pathogen):
             if 0 <= asymptomatic <= 1:
                 asymptomatic = int(num_p0s * asymptomatic)
             else:
-                # We understand numbers greater than one as the number of asymptomatic particles.
+                # We understand numbers greater than one as the number of asymptomatic agents.
                 asymptomatic = int(asymptomatic)
 
         elif type(asymptomatic) == bool:
@@ -288,7 +288,7 @@ class RegionVirusDynamicExposure(Pathogen):
 
 
 class RegionVirusDynamicExposureBaseOnViralLoad(RegionVirusDynamicExposure):
-    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: ParticleList,
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: AgentList,
                  radius=5,
                  clearance_duration_distribution=None,
                  illness_duration_distribution=None,
