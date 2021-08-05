@@ -122,6 +122,22 @@ class WorldBuilder:
 
 
 class WorldBuilderTest(TestCase):
+    def test_apartment_entry(self):
+        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6))
+        pop1, pop2 = [ap.population for ap in w.worlds]
+        assert (pop1.index == w.population.index[:5]).all()
+        assert (pop2.index == w.population.index[5:]).all()
+
+    def test_apartment_exit(self):
+        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6))
+        pop1, pop2 = [ap.population for ap in w.worlds]
+
+        w.universe.move_agents(pop1.index[-1], w.worlds[1])
+        assert (w.worlds[0].population.index == w.population.index[:4]).all()
+
+    def test_changing_rooms(self):
+        return
+
     def test_apartment_rotation_entrance_rand_motion(self):
         for rot in [0, 90, 180, 270]:
             WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), rotation=rot)

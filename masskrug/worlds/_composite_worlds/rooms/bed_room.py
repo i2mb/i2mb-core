@@ -33,10 +33,6 @@ class BedRoom(BaseRoom):
     def enter_world(self, n, idx=None, arriving_from=None):
         return [self.entry_point] * n
 
-    def exit_world(self, idx):
-        bool_ix = self.population.find_indexes(idx)
-        self.population.motion_mask[bool_ix] = True
-
     def step(self, t):
         if not self.population:
             return

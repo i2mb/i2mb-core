@@ -37,7 +37,7 @@ class GetTested(Model):
 
             # Check if we have to, and want to, report the positive test to the health authorities
             share_results = np.random.random((len(self.population), 1)) <= self.share_test_result
-            report_tests = test_results & ~self.population.isolated.ravel() & share_results
+            report_tests = test_results & ~self.population.isolated.ravel() & share_results.ravel()
             if hasattr(self.population, "positive_test_report"):
                 self.population.positive_test_report[report_tests] = True
 

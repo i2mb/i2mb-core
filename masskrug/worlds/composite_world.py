@@ -114,6 +114,9 @@ class CompositeWorld(World):
     def move_agents(self, idx, region):
         """Only the outer most region can move agents between two contained worlds"""
         idx = self.population.index[idx][~self.population.remain[idx]]
+        if len(idx) == 0:
+            return
+
         departed_from_regions = self.depart_current_region(idx)
         self.enter_region(idx, region, departed_from_regions)
         cache_manager.invalidate()

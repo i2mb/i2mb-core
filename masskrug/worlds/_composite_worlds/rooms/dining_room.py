@@ -36,6 +36,6 @@ class DiningRoom(BaseRoom):
                                           self.table.occupants - seats:self.table.occupants]
 
     def exit_world(self, idx):
+        super().exit_world(idx)
         bool_ix = self.population.find_indexes(idx)
-        self.population.motion_mask[bool_ix] = True
         self.table.occupants -= sum(bool_ix)

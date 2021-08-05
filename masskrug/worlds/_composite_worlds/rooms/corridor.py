@@ -45,11 +45,7 @@ class Corridor(BaseRoom):
             arriving_from[outsiders.ravel()] = self.__adjacent_rooms[-1]
 
         indices = npi.indices(self.__adjacent_rooms, arriving_from)
-        return self.__room_entries[indices]
-
-    def exit_world(self, idx):
-        bool_ix = self.population.find_indexes(idx)
-        self.population.motion_mask[bool_ix] = True
+        return self.__room_entries[indices].reshape((-1, 2))
 
     def step(self, t):
         if self.public:

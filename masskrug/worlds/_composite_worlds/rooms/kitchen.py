@@ -62,11 +62,11 @@ class Kitchen(BaseRoom):
                                        origin[1] + offset[(int(k.rotation / 90) + 2) % 4]]
 
     def exit_world(self, idx):
+        super().exit_world(idx)
         bool_ix = self.population.find_indexes(idx)
         self.population.stay[bool_ix] = False
         self.population.accumulated_stay[bool_ix] = 0
         self.population.current_stay_duration[bool_ix] = -np.inf
-        self.population.motion_mask[bool_ix] = True
 
     def move(self, n):
         # move around along kitchen unit -> get borders (0.1 away for nicer visual)
