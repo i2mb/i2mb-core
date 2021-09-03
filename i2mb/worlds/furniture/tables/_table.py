@@ -1,3 +1,5 @@
+from itertools import product
+
 import numpy as np
 
 # Reserved distance for a chair. The distance is measured outwards from the border of the table.
@@ -15,8 +17,43 @@ class BaseTable(BaseFurniture):
         self.occupants = 0
         self.sits = sits
 
+        self.compute_sitting_positions()
+        self.points.extend(self._sitting_positions)
+
+    def compute_sitting_positions(self):
+        # Determine table size:
+        side_seats = 1
+        if self.sits <= 4:
+            self.sits = 4
+
+        eating_depth = (self.reg_length - MINIMUM_CHAIR_SPACE)
+        eating_area = eating_depth * self.reg_width
+        head_depth = eating_area / (eating_depth * 2)
+
+        if self.sits > 4:
+            side_seats = (self.sits - 2 + self.sits % 2) // 2
+
+        # Head of the table
+        self._sitting_positions[0, :] = [-self.reg_width/2,
+                                          self.height / 2]
+        # Foot of the table
+        self._sitting_positions[-1, :] = [self.reg_width/2 + self.width,
+                                          self.height / 2]
+        # Sides of the table
+        side_w_pos = [head_depth + (self.width / side_seats * s) for s in range(side_seats)]
+        side_l_pos = [-self.reg_length/4, self.reg_length/4 + self.height]
+        positions = np.array(list(product(side_w_pos, side_l_pos)))
+        self._sitting_positions[1:-1, :] = positions[positions[:, 0].argsort()]
+
     def get_sitting_positions(self):
         return self._sitting_positions + self.origin
+
+    def get_activity_position(self, origin=(0, 0),  pos_id=None):
+        seat = pos_id
+        if pos_id is None:
+            seat = np.random.choice(range(len(self._sitting_positions)), size=1)
+
+        return self.get_sitting_positions()[seat]
 
     def draw(self, ax, bbox=True):
         pass

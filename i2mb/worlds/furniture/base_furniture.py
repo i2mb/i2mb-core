@@ -1,4 +1,3 @@
-import numpy as np
 from i2mb.worlds._area import Area
 
 
@@ -7,6 +6,9 @@ class BaseFurniture(Area):
         self.equipment = []
         super().__init__(height=height, width=width, origin=origin, rotation=rotation, scale=scale,
                          subareas=self.equipment)
+
+    def get_activity_position(self, origin=(0, 0), pos_id=None):
+        return self.origin + self.dims / 2
 
     def add_equipment(self, equipment):
         self.points.extend([p for f in equipment for p in [f.origin, f.opposite]])

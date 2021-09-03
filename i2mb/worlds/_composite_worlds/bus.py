@@ -1,12 +1,11 @@
 from collections import deque
 
 import numpy as np
+from matplotlib import image as mpimage
 from matplotlib.axes import Axes
-from matplotlib import image as mpimage, transforms
 
-from i2mb.worlds import CompositeWorld
 from i2mb import _assets_dir
-
+from i2mb.worlds import CompositeWorld
 # Based on Mercedes-benz BUS Citaro K 2 doors C 628.405-13*)
 from i2mb.worlds.world_base import PublicSpace
 
@@ -81,7 +80,7 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
         idx_ = self.population.find_indexes(idx[seats:])
         self.position[idx_] = np.random.random((standing, 2)) * (self.dims * 1 / 3) + (self.dims * 1 / 3)
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[bool_idx] = True

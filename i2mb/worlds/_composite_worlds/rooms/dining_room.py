@@ -1,6 +1,8 @@
-from ._room import BaseRoom
-from i2mb.worlds.furniture.tables.dining import DiningTable
 import numpy as np
+
+import i2mb.activities.activity_descriptors
+from i2mb.worlds.furniture.tables.dining import DiningTable
+from ._room import BaseRoom
 
 """
     :param num_seats: Number of seats, values not between 1 and 8 will be ignored
@@ -27,6 +29,9 @@ class DiningRoom(BaseRoom):
         self.add_furniture([self.table])
         # self.get_furniture_grid()
 
+        self.local_activities.extend([i2mb.activities.activity_descriptors.Eat(self, self.table, pos_id=seat) for seat
+                                      in range(self.table.sits)])
+
     def sit_particles(self, idx):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         new_idx = np.arange(len(self.population))[bool_idx]
@@ -35,7 +40,7 @@ class DiningRoom(BaseRoom):
         self.population.target[new_idx] = self.table.get_sitting_positions()[
                                           self.table.occupants - seats:self.table.occupants]
 
-    def exit_world(self, idx):
-        super().exit_world(idx)
+    def exit_world(self, idx, global_population):
+        super().exit_world(idx, None)
         bool_ix = self.population.find_indexes(idx)
         self.table.occupants -= sum(bool_ix)

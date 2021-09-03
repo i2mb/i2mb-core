@@ -1,7 +1,8 @@
 import random
 
-from i2mb.worlds import CompositeWorld
 import numpy as np
+
+from i2mb.worlds import CompositeWorld
 
 
 class ApartmentBuildingWorld(CompositeWorld):
@@ -69,7 +70,7 @@ class ApartmentBuildingWorld(CompositeWorld):
                                self.population.home]
         self.living_entries = np.array(self.living_entries)
 
-        self.bath_entries = [self.entries_flatten[self.ids_flatten.index(id(a.bath))] for a in self.population.home]
+        self.bath_entries = [self.entries_flatten[self.ids_flatten.index(id(a.bathroom))] for a in self.population.home]
         self.bath_entries = np.array(self.bath_entries)
 
         self.bed_entries = [self.entries_flatten[self.ids_flatten.index(id(x))] for x in self.population.bedroom]
@@ -78,7 +79,7 @@ class ApartmentBuildingWorld(CompositeWorld):
         # rooms in apartment
         self.corridor = np.array([a.corridor for a in self.population.home])
         self.livingroom = np.array([a.living_room for a in self.population.home])
-        self.bath = np.array([a.bath for a in self.population.home])
+        self.bath = np.array([a.bathroom for a in self.population.home])
         self.diningroom = np.array([a.dining_room for a in self.population.home])
         self.kitchen = np.array([a.kitchen for a in self.population.home])
 
@@ -176,7 +177,7 @@ class ApartmentBuildingWorld(CompositeWorld):
                     temp_bed[i] = True
                     self.move_agents(temp_bed, self.population.bedroom[i])
 
-            # move to bath
+            # move to bathroom
             bath = self.population.target == self.bath_entries
             bath = np.array([all(i) for i in bath])
             switch = at_target & bath
@@ -189,9 +190,9 @@ class ApartmentBuildingWorld(CompositeWorld):
                         can_go = np.zeros(n, dtype=bool)
                         can_go[np.where(bool_idx)[0][0]] = True
 
-                        self.move_agents(can_go, a.bath)
+                        self.move_agents(can_go, a.bathroom)
                         self.population.in_bathroom[can_go] = True
-                        a.bath.occupied = True
+                        a.bathroom.occupied = True
                         self.population.target[can_go] = np.nan
 
     def walk_to_apartment(self, idx):
@@ -474,7 +475,7 @@ class ApartmentBuildingWorld(CompositeWorld):
             if in_cor.any():
                 self.population.target[in_cor] = self.bed_entries[in_cor]
 
-        if hasattr(self.population, "bath"):
+        if hasattr(self.population, "bathroom"):
             in_bathroom = [self.population.location == self.bath]
             in_bathroom = np.array([d for sub in in_bathroom for d in sub])
 

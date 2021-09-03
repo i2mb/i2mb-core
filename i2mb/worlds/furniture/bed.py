@@ -1,6 +1,7 @@
 import numpy as np
+from matplotlib.patches import Rectangle
+
 from i2mb.worlds.furniture.base_furniture import BaseFurniture
-from matplotlib.patches import Rectangle, Arc
 
 
 class Bed(BaseFurniture):
@@ -25,7 +26,7 @@ class Bed(BaseFurniture):
     def generate_bed_parts(self):
         self.points.extend([])
 
-    def get_sleeping_position(self, origin=(0, 0)):
+    def get_activity_position(self, origin=(0, 0), pos_id=None):
         return self.origin + self.sleeping_pos + origin
 
     def draw(self, ax, bbox=True, origin=(0, 0)):

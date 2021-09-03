@@ -1,9 +1,10 @@
-from ._room import BaseRoom
-from i2mb.worlds.furniture.kitchenUnit import KitchenUnit
-from i2mb.utils import global_time
-from functools import partial
 from random import uniform, randint
+
 import numpy as np
+
+import i2mb.activities.activity_descriptors
+from i2mb.worlds.furniture.kitchenUnit import KitchenUnit
+from ._room import BaseRoom
 
 """
     :param outline: Shape of the kitchen unit. Possible choices are U, L and I.
@@ -36,6 +37,7 @@ class Kitchen(BaseRoom):
         self.furniture_upper = np.empty((n, 2))
         self.furniture_origins = np.empty((n, 2))
         self.get_furniture_grid(outline)
+        self.local_activities.extend([i2mb.activities.activity_descriptors.Cook(self, self.kitchen_unit)])
 
     def get_furniture_grid(self, outline):  # TODO comment not really origins
         k = self.kitchen_unit
@@ -61,12 +63,12 @@ class Kitchen(BaseRoom):
             self.furniture_upper[2] = [origin[0] + offset[(int(k.rotation / 90) + 3) % 4],
                                        origin[1] + offset[(int(k.rotation / 90) + 2) % 4]]
 
-    def exit_world(self, idx):
-        super().exit_world(idx)
+    def exit_world(self, idx, global_population):
+        super().exit_world(idx, None)
         bool_ix = self.population.find_indexes(idx)
-        self.population.stay[bool_ix] = False
-        self.population.accumulated_stay[bool_ix] = 0
-        self.population.current_stay_duration[bool_ix] = -np.inf
+        # self.population.stay[bool_ix] = False
+        # self.population.accumulated_stay[bool_ix] = 0
+        # self.population.current_stay_duration[bool_ix] = -np.inf
 
     def move(self, n):
         # move around along kitchen unit -> get borders (0.1 away for nicer visual)
@@ -109,40 +111,40 @@ class Kitchen(BaseRoom):
         if not self.population:
             return
 
-        # update staying duration
-        stay_update = self.population.stay.ravel()
-        if stay_update.any():
-            self.population.accumulated_stay[stay_update] += 1
-
-        acc_stay = self.population.accumulated_stay.ravel()
-        cur_stay = self.population.current_stay_duration.ravel()
-        enough_staying = (acc_stay > cur_stay)
-        entered1 = (self.population.target == self.entry_point)
-        entered2 = np.isclose(self.population.position, self.entry_point)
-        entered1 = np.array([all(i) for i in entered1])
-        entered2 = np.array([all(i) for i in entered2])
-        enough_staying = (stay_update & enough_staying) | (~entered1 & entered2)
-
-        # go somewhere else at the kitchen unit
-        if enough_staying.any():
-            self.population.stay[enough_staying] = False
-            self.population.accumulated_stay[enough_staying] = 0
-            self.population.current_stay_duration[enough_staying] = -np.inf
-            self.population.target[enough_staying] = self.move(enough_staying.sum())
-
-        at_target = np.isclose(self.population.target, self.population.position)
-        at_target = np.array([all(i) for i in at_target])
-        at_target = at_target & self.population.motion_mask.ravel()
-        leaving = self.population.target == self.entry_point
-        leaving = np.array([all(i) for i in leaving])
-        prepare = at_target & ~leaving
-
-        if prepare.any():
-            # stay and prepare for 4 to 8 minutes
-            stay_duration = partial(np.random.normal, global_time.make_time(minutes=6),
-                                    global_time.make_time(minutes=2))((prepare.sum(), 1))
-
-            self.population.current_stay_duration[prepare] = stay_duration
-            self.population.stay[prepare] = True
+        # # update staying duration
+        # stay_update = self.population.stay.ravel()
+        # if stay_update.any():
+        #     self.population.accumulated_stay[stay_update] += 1
+        #
+        # acc_stay = self.population.accumulated_stay.ravel()
+        # cur_stay = self.population.current_stay_duration.ravel()
+        # enough_staying = (acc_stay > cur_stay)
+        # entered1 = (self.population.target == self.entry_point)
+        # entered2 = np.isclose(self.population.position, self.entry_point)
+        # entered1 = np.array([all(i) for i in entered1])
+        # entered2 = np.array([all(i) for i in entered2])
+        # enough_staying = (stay_update & enough_staying) | (~entered1 & entered2)
+        #
+        # # go somewhere else at the kitchen unit
+        # if enough_staying.any():
+        #     self.population.stay[enough_staying] = False
+        #     self.population.accumulated_stay[enough_staying] = 0
+        #     self.population.current_stay_duration[enough_staying] = -np.inf
+        #     self.population.target[enough_staying] = self.move(enough_staying.sum())
+        #
+        # at_target = np.isclose(self.population.target, self.population.position)
+        # at_target = np.array([all(i) for i in at_target])
+        # at_target = at_target & self.population.motion_mask.ravel()
+        # leaving = self.population.target == self.entry_point
+        # leaving = np.array([all(i) for i in leaving])
+        # prepare = at_target & ~leaving
+        #
+        # if prepare.any():
+        #     # stay and prepare for 4 to 8 minutes
+        #     stay_duration = partial(np.random.normal, global_time.make_time(minutes=6),
+        #                             global_time.make_time(minutes=2))((prepare.sum(), 1))
+        #
+        #     self.population.current_stay_duration[prepare] = stay_duration
+        #     self.population.stay[prepare] = True
 
         return

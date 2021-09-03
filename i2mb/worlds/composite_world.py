@@ -32,6 +32,12 @@ class CompositeWorld(World):
         self.containment = containment
         self.region_origins = np.array([])
         self.region_dimensions = np.array([])
+        self.local_activities = []
+        self.available_activities = []
+        self.activity_types = set()
+
+        # Define the logical levels an agent needs to traverse in order to exit a building
+        self.entry_route = np.array([self])
 
         if regions:
             self.add_regions(regions)
@@ -58,12 +64,14 @@ class CompositeWorld(World):
         self.position = self.enter_world(n)
         self.containment_region = np.empty((n,), dtype=object)
         self.home = np.empty((n,), dtype=object)
+        self.at_home = np.zeros((n,), dtype=bool)
         self.remain = np.zeros((n,), dtype=bool)
         population.add_property("location", self.location)
         population.add_property("remain", self.remain)
         population.add_property("position", self.position)
         population.add_property("containment_region", self.containment_region)
         population.add_property("home", self.home)
+        population.add_property("at_home", self.at_home)
         population.add_property("regions", {self}, l_property=True)
         self.gravity = np.zeros((n, 2))
         population.add_property("gravity", self.gravity)
@@ -114,15 +122,20 @@ class CompositeWorld(World):
     def move_agents(self, idx, region):
         """Only the outer most region can move agents between two contained worlds"""
         idx = self.population.index[idx][~self.population.remain[idx]]
+
+        # Remove ids that are already in region
+        mask = self.population.location[idx] == region
+        idx = self.population.index[idx][~mask]
         if len(idx) == 0:
             return
 
-        departed_from_regions = self.depart_current_region(idx)
+        departed_from_regions = self.depart_current_region(idx, region)
         self.enter_region(idx, region, departed_from_regions)
         cache_manager.invalidate()
 
     def enter_region(self, idx, region, departed_from_regions):
         idx_ = idx
+        region.prepare_entrance(idx, self.population)
         region = region.get_entrance_sub_region()
         if region.population is not None:
             old_idx = region.population.index
@@ -138,13 +151,13 @@ class CompositeWorld(World):
         if self not in self.location and self in self.population.regions:
             self.population.regions.remove(self)
 
-    def depart_current_region(self, idx):
+    def depart_current_region(self, idx, destination):
         depart = set(self.location[idx]) - {self}
         for r in depart:
             old_idx = r.population.index
             new_idx = np.setdiff1d(old_idx, idx)
             leaving_idx = np.intersect1d(old_idx, idx)
-            r.exit_world(leaving_idx)
+            self.execute_transfer_route(destination, leaving_idx, r)
             r.population = self.population[new_idx]
             r.location = self.location[new_idx]
             r.position = self.position[new_idx]
@@ -152,6 +165,15 @@ class CompositeWorld(World):
                 self.population.regions.remove(r)
 
         return self.location[idx]
+
+    def execute_transfer_route(self, destination, leaving_idx, r):
+        entry_matrix = r.entry_route.reshape(-1, 1) == destination.entry_route
+        entry_levels = ~(entry_matrix.any(axis=0))
+        exit_levels = ~(entry_matrix.any(axis=1))
+        for level in r.entry_route[exit_levels]:
+            level.exit_world(leaving_idx, self.population)
+        for level in destination.entry_route[entry_levels]:
+            level.prepare_entrance(leaving_idx, self.population)
 
     def is_empty(self):
         if hasattr(self, "population") and len(self.population) > 0:
@@ -208,3 +230,10 @@ class CompositeWorld(World):
 
     def get_entrance_sub_region(self):
         return self
+
+    def list_all_regions(self):
+        region_list = [self]
+        for r in self.regions:
+            region_list.extend(r.list_all_regions())
+
+        return region_list

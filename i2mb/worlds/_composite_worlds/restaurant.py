@@ -79,7 +79,7 @@ class Restaurant(CompositeWorld, PublicSpace):
 
         return np.zeros((n, 2))
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[bool_idx] = True

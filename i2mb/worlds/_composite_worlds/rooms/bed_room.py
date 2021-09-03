@@ -1,9 +1,8 @@
-from ._room import BaseRoom
-from i2mb.utils import global_time
-from functools import partial
 import numpy as np
 
+import i2mb.activities.activity_descriptors
 from i2mb.worlds.furniture.bed import Bed
+from ._room import BaseRoom
 
 """
     :param num_beds: Number of beds, values other than 1 and 2 are ignored
@@ -21,14 +20,19 @@ class BedRoom(BaseRoom):
         self.beds = np.array([Bed(origin=[0, (height - 1) * b], scale=scale, rotation=90) for b in range(num_beds)])
 
         self.add_furniture(self.beds)
-        self.bed_assignment = None
+        self.bed_assignment = np.zeros_like(self.beds, dtype=int)
+        self.bed_assignment[:] = -1
 
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
+        self.local_activities.extend([i2mb.activities.activity_descriptors.Sleep(self, b) for b in self.beds])
 
     def assign_beds(self, ids):
-        self.bed_assignment = ids[:len(self.beds)]
+        if len(ids) > len(self.beds):
+            raise RuntimeError("Not enough beds to assign")
+
+        self.bed_assignment[:len(ids)] = ids.ravel()
 
     def enter_world(self, n, idx=None, arriving_from=None):
         return [self.entry_point] * n
@@ -52,7 +56,7 @@ class BedRoom(BaseRoom):
         #     wake_up = (~self.population.sleep & self.population.in_bed).ravel()
         #     dressing = np.copy(wake_up)
         #     if wake_up.any():
-        #         self.population.position[wake_up] = self.population.dress_pos[wake_up]
+        #         self.population.position[wake_up] = self.poself.bed_assignment.reshape(-1, 1)pulation.dress_pos[wake_up]
         #         self.population.target[wake_up] = self.population.dress_pos[wake_up]
         #         self.population.in_bed[wake_up] = False
         #         self.population.motion_mask[wake_up] = True
@@ -93,7 +97,7 @@ class BedRoom(BaseRoom):
         #
         #     sleep = (send_to_bed & at_dress_pos).ravel() & enough_staying
         #     sleep = sleep & self.population.motion_mask.ravel()
-            self.put_to_bed()
+        #     self.put_to_bed()
         #
         #     awake = (~self.population.sleep & ~self.population.in_bed & ~self.population.busy).ravel()
         #     if awake.any():
@@ -104,7 +108,7 @@ class BedRoom(BaseRoom):
         #         self.population.target[busy] = self.entry_point
 
     def put_to_bed(self, ids):
-        if ids.any():
+        if len(ids) > 0:
             ids_in_room = self.bed_assignment.reshape(-1, 1) == ids
             beds = np.array([b.sleeping_pos + b.origin for b in self.beds])
             bed_assignment = ids_in_room.any(axis=1)
@@ -115,8 +119,11 @@ class BedRoom(BaseRoom):
             self.population.position[ids] = beds[bed_assignment]
             self.population.in_bed[ids] = True
 
+    def exit_world(self, ids, global_population):
+        self.get_out_of_bed(ids)
+
     def get_out_of_bed(self, ids):
-        if ids.any():
+        if len(ids) > 0:
             ids = (self.population.index.reshape(-1, 1) == ids).any(axis=1)
             self.population.motion_mask[ids] = True
             self.population.in_bed[ids] = False

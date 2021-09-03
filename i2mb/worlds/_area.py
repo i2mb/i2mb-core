@@ -187,4 +187,11 @@ class Area(metaclass=ExitInit):
         # Update external origin for rotated geometry
         self.update_external_origin()
 
+    def list_all_regions(self):
+        area_list = [self]
+        for r in self.__sub_areas:
+            area_list.extend(r.list_all_regions())
+
+        return area_list
+
 

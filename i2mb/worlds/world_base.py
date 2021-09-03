@@ -22,8 +22,14 @@ class World(Model, Area):
         """
         return np.random.random((n, 2)) * self.dims
 
-    def exit_world(self, idx):
-        """Given a list of particle ids that left the world, adjust the world after their departure."""
+    def prepare_entrance(self, idx, global_population):
+        """Adjust location state based on entering agents"""
+        return
+
+    def exit_world(self, idx, global_population):
+        """Given a list of particle ids that left the world, adjust the world after their departure.
+        :param global_population:
+        """
         return
 
     def available_places(self):
@@ -50,6 +56,9 @@ class World(Model, Area):
     def random_position(self, n):
         """Generates `n` random positions in the world."""
         return np.random.random((n, 2)) * self._dims
+
+    def list_all_regions(self):
+        return []
 
 
 class Landmark(ABC):

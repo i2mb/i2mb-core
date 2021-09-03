@@ -1,10 +1,11 @@
-from i2mb.worlds import CompositeWorld
-from matplotlib.patches import Rectangle, PathPatch, Arc
-from matplotlib.path import Path
-import numpy_indexed as npi
 from random import uniform
 
 import numpy as np
+import numpy_indexed as npi
+from matplotlib.patches import Rectangle, PathPatch
+from matplotlib.path import Path
+
+from i2mb.worlds import CompositeWorld
 
 """
     :param num_floors: Number of floors in the apartment building. Value above 1.
@@ -41,7 +42,7 @@ class Stairs(CompositeWorld):
         indices = npi.indices(rooms, locations)
         return entries[indices]
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         bool_ix = self.population.find_indexes(idx)
         self.population.inter_target[bool_ix] = np.nan
         self.population.motion_mask[bool_ix] = True

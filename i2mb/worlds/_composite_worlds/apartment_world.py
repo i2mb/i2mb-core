@@ -1,5 +1,6 @@
-from i2mb.worlds import CompositeWorld
 import numpy as np
+
+from i2mb.worlds import CompositeWorld
 
 
 class ApartmentWorld(CompositeWorld):
@@ -49,7 +50,7 @@ class ApartmentWorld(CompositeWorld):
                                self.population.home]
         self.living_entries = np.array(self.living_entries)
 
-        self.bath_entries = [self.entries_flatten[self.ids_flatten.index(id(a.bath))] for a in self.population.home]
+        self.bath_entries = [self.entries_flatten[self.ids_flatten.index(id(a.bathroom))] for a in self.population.home]
         self.bath_entries = np.array(self.bath_entries)
 
         self.bed_entries = [self.entries_flatten[self.ids_flatten.index(id(x))] for x in self.population.bedroom]
@@ -134,16 +135,16 @@ class ApartmentWorld(CompositeWorld):
                     self.move_agents(temp_bed, self.population.bedroom[i])
                     self.population.target[temp_bed] = np.nan
 
-            # move to bath
+            # move to bathroom
             bath = self.population.target == self.bath_entries
             bath = np.array([all(i) for i in bath])
             switch = at_target & bath
 
-            if switch.any() & ~self.apartment.bath.occupied:
+            if switch.any() & ~self.apartment.bathroom.occupied:
                 can_go = np.zeros(n, dtype=bool)
                 can_go[np.where(switch)[0][0]] = True
 
-                self.move_agents(can_go, self.apartment.bath)
+                self.move_agents(can_go, self.apartment.bathroom)
                 self.population.in_bathroom[can_go] = True
                 self.population.target[can_go] = np.nan
 
@@ -193,8 +194,8 @@ class ApartmentWorld(CompositeWorld):
                     self.population.target[leave_apartment] = np.nan
                     self.population.at_home[leave_apartment] = False
 
-        if hasattr(self.population, "bath"):
-            in_bathroom = self.population.location == self.apartment.bath
+        if hasattr(self.population, "bathroom"):
+            in_bathroom = self.population.location == self.apartment.bathroom
 
             # Make people dirty
             get_dirty = ~self.population.bath.ravel() & self.population.in_bathroom.ravel() & at_home

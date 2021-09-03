@@ -1,8 +1,7 @@
-from i2mb.worlds import CompositeWorld
-from i2mb.worlds._area import Area
-from i2mb.worlds.furniture.door import Door, DOOR_WIDTH
-from matplotlib.patches import Rectangle, Arc
 import numpy as np
+
+from i2mb.worlds import CompositeWorld
+from i2mb.worlds.furniture.door import Door, DOOR_WIDTH
 
 """
     :param entry: Position of the door in percentage of room width.
@@ -55,7 +54,7 @@ class BaseRoom(CompositeWorld):
     def enter_world(self, n, idx=None, arriving_from=None):
         return [self.entry_point] * n
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         bool_ix = self.population.find_indexes(idx)
         self.population.motion_mask[bool_ix] = True
 

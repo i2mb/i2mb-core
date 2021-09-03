@@ -1,12 +1,13 @@
-from ._room import BaseRoom
-from i2mb.utils import global_time
-from functools import partial
 from collections import deque
+
 import numpy as np
 
-from i2mb.worlds.furniture.furniture_living.seats import Sofa
+import i2mb.activities.activity_descriptors
 from i2mb.worlds.furniture.furniture_living.seats import Armchair
-from i2mb.worlds.furniture.furniture_living.couch_table import CouchTable
+from i2mb.worlds.furniture.furniture_living.seats import Sofa
+from ._room import BaseRoom
+
+# from i2mb.worlds.furniture.furniture_living.couch_table import CouchTable
 
 """
     :param num_seats: Number of seats, values not between 1 and 6 will be ignored
@@ -65,6 +66,7 @@ class LivingRoom(BaseRoom):
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
+        self.local_activities.extend([i2mb.activities.activity_descriptors.Rest(self, s) for s in self.seats])
 
     def arrange_furniture(self):
         if self.num_seats == 1:

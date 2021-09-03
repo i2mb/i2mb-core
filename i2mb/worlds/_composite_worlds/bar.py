@@ -1,7 +1,6 @@
 from collections import deque
 
 import numpy as np
-
 from matplotlib.patches import Rectangle
 
 from i2mb.worlds import CompositeWorld
@@ -134,10 +133,9 @@ class Bar(CompositeWorld, PublicSpace):
 
         return np.zeros((n, 2))
 
-    def exit_world(self, idx):
-        bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
+    def exit_world(self, idx, global_population):
         if hasattr(self.population, "motion_mask"):
-            self.population.motion_mask[bool_idx] = True
+            global_population.motion_mask[idx] = True
 
         for ix in idx:
             table = self.table_assignment[ix]

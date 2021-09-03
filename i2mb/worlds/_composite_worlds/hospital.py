@@ -1,7 +1,7 @@
 from collections import deque
+from itertools import product
 
 import numpy as np
-from itertools import product
 
 from i2mb.pathogen import UserStates
 from i2mb.worlds import CompositeWorld
@@ -39,7 +39,7 @@ class Hospital(CompositeWorld):
         bed_pos = self.bed_positions[beds]
         return bed_pos
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         for ix in idx:
             bed = self.bed_assignment[ix]
             self.available_beds.append(bed)

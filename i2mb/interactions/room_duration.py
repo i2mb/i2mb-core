@@ -1,4 +1,5 @@
 import numpy as np
+
 from i2mb.utils import global_time
 
 '''
@@ -28,7 +29,7 @@ class RoomDuration:
 
         self.corridor = np.array([a.corridor for a in self.population.home])
         self.livingroom = np.array([a.living_room for a in self.population.home])
-        self.bath = np.array([a.bath for a in self.population.home])
+        self.bath = np.array([a.bathroom for a in self.population.home])
         self.diningroom = np.array([a.dining_room for a in self.population.home])
         self.kitchen = np.array([a.kitchen for a in self.population.home])
 

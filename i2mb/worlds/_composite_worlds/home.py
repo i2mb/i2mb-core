@@ -109,6 +109,6 @@ class Home(CompositeWorld):
 
         return
 
-    def exit_world(self, idx):
+    def exit_world(self, idx, global_population):
         bool_ix = self.population.find_indexes(idx)
         self.population.motion_mask[bool_ix] = True
