@@ -14,26 +14,24 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from argparse import ArgumentParser
-from importlib import import_module
 from unittest import TestCase
 
 import matplotlib.pyplot as plt
 import numpy as np
-from i2mb.engine.core import Engine
+from matplotlib.animation import FuncAnimation
 
 from i2mb.engine.agents import AgentList
+from i2mb.engine.core import Engine
 from i2mb.motion.random_motion import RandomMotion
 from i2mb.utils import global_time
 from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
-from matplotlib.animation import FuncAnimation
 
 global_time.ticks_scalar = 60 / 5 * 24
 
 
 class WorldBuilder:
     def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000,
-                 update_callback=None):
+                 update_callback=None, no_gui=False):
         if update_callback is None:
             update_callback = self.__update_callback
 
@@ -51,6 +49,10 @@ class WorldBuilder:
             world_kwargs["rotation"] = rotation
             self.worlds.append(world_cls(**world_kwargs))
 
+        world_kwargs = {"origin": (rotation in [90, 270] and (1 + (1 + 7) * (w + 1), 1) or (1, 1 + (1 + 7) * (w + 1))),
+                        "rotation": rotation, "dims": (4, 4)}
+        self.worlds.append(CompositeWorld(**world_kwargs))
+
         self.population = AgentList(10)
         self.universe = CompositeWorld(population=self.population, regions=self.worlds, origin=[0, 0])
         self.universe.dims += 1
@@ -60,20 +62,25 @@ class WorldBuilder:
         self.engine = Engine([motion] + self.worlds, debug=True)
 
         self.assign_agents_to_worlds()
-        self.create_animation_engine()
+        if not no_gui:
+            self.create_animation_engine()
 
     @staticmethod
     def __update_callback(self, frame):
         return
 
     def assign_agents_to_worlds(self):
-        self.universe.move_agents(self.population.index[5:], self.worlds[1])
         start = 0
         end = 5
         for w in self.worlds:
-            self.universe.move_agents(self.population.index[start:end], w)
             if hasattr(w, "move_home"):
                 w.move_home(self.population[start:end])
+                self.population.home[start:end] = w
+
+            if hasattr(w, "assign_beds"):
+                w.assign_beds()
+
+            self.universe.move_agents(self.population.index[start:end], w)
 
             start += 5
             end += 5
@@ -124,17 +131,19 @@ class WorldBuilder:
 
 class WorldBuilderTest(TestCase):
     def test_apartment_entry(self):
-        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6))
-        pop1, pop2 = [ap.population for ap in w.worlds]
+        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), no_gui=True)
+        pop1, pop2, pop3 = [ap.get_entrance_sub_region().population for ap in w.worlds]
+        assert w.population.at_home.all()
         assert (pop1.index == w.population.index[:5]).all()
         assert (pop2.index == w.population.index[5:]).all()
 
     def test_apartment_exit(self):
-        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6))
-        pop1, pop2 = [ap.population for ap in w.worlds]
+        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), no_gui=True)
+        pop1, pop2, pop3 = [ap.population for ap in w.worlds]
 
-        w.universe.move_agents(pop1.index[-1], w.worlds[1])
+        w.universe.move_agents(pop1.index[-1], w.worlds[2])
         assert (w.worlds[0].population.index == w.population.index[:4]).all()
+        assert ~w.population.at_home.all()
 
     def test_changing_rooms(self):
         return
