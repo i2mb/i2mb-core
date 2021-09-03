@@ -75,7 +75,6 @@ class LocationActivities(Model):
             self.current_routine = new_routine
             skip_activities = self.routine_schedule[routine_period]["skip_activities"]
             self.routines.reset_routine_queue(skip_activities=skip_activities)
-            print(self.current_routine)
 
     def schedule_next_activity_in_routine(self, t):
         inactive = (self.activities.current_activity == 0)

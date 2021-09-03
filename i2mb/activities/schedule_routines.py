@@ -257,7 +257,6 @@ class ScheduleRoutines(Motion):
         regions = set(self.event_location[move_mask.ravel()].ravel())
         for r in regions:
             self.world.move_agents(move_mask.ravel() & (self.event_location == r), r)
-            print(t, "Scheduled Move")
 
         self.update_events(end_triggers, t)
 
