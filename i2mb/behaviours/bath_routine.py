@@ -1,4 +1,5 @@
 import numpy as np
+
 from i2mb import Model
 from i2mb.engine.agents import AgentList
 from i2mb.utils import global_time
@@ -22,7 +23,7 @@ class BathBehaviour(Model):
 
         self.day = np.full((n, 1), -np.inf)
 
-        population.add_property("bath", self.bath)
+        population.add_property("bathroom", self.bath)
         population.add_property("in_bathroom", self.in_bathroom)
 
     def step(self, t):
@@ -54,7 +55,7 @@ class BathBehaviour(Model):
             self.bath[take_a_bath] = True
             self.population.busy[take_a_bath] = True
 
-        # Update bath duration
+        # Update bathroom duration
         cleaning = self.bath & self.in_bathroom
         if cleaning.any():
             self.accumulated_bath[cleaning] += 1

@@ -1,4 +1,5 @@
 import numpy as np
+
 from i2mb import Model
 from i2mb.engine.agents import AgentList
 from i2mb.utils import global_time
@@ -65,7 +66,7 @@ class QuarantineBehaviour(Model):
                 self.population.eat[self.in_quarantine] = False
             if hasattr(self.population, "working"):
                 self.population.working[self.in_quarantine] = False
-            if hasattr(self.population, "bath"):
+            if hasattr(self.population, "bathroom"):
                 self.population.bath[self.in_quarantine] = False
             self.accumulated_quarantine[self.in_quarantine] += 1
 

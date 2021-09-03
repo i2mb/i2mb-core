@@ -1,4 +1,3 @@
-from functools import wraps
 from i2mb.utils import cache_manager
 
 
@@ -14,7 +13,7 @@ class Engine:
 
             self.debug_timer = {}
 
-        self.time = None
+        self.time = 0
         self.models = models
         self.num_steps = num_steps
         if select is None:
@@ -26,7 +25,6 @@ class Engine:
             self.populations = populations
 
     def step(self):
-        self.time = 0
         cache_manager.time = 0
         while True:
             for p in self.populations:
@@ -53,3 +51,7 @@ class Engine:
     def finalize(self):
         for m in self.models:
             m.final(self.time)
+
+    def post_init_modules(self):
+        for m in self.models:
+            m.post_init()

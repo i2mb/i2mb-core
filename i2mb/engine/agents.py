@@ -1,5 +1,3 @@
-from copy import copy
-
 import numpy as np
 
 
@@ -65,6 +63,18 @@ class AgentListView:
 
     def find_indexes(self, idx):
         return (self.__index.reshape((-1, 1)) == idx.ravel()).any(axis=1).ravel()
+
+    def add(self, ids):
+        old_ix = self.__index
+        new_index = np.union1d(old_ix, ids)
+        self.__index = new_index
+        self.__len = len(new_index)
+
+    def remove(self, ids):
+        old_ix = self.__index
+        new_ix = np.setdiff1d(old_ix, ids)
+        self.__index = new_ix
+        self.__len = len(new_ix)
 
 
 class AgentList:

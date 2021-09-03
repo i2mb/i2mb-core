@@ -1,13 +1,12 @@
-from collections import deque
 from itertools import cycle
 from typing import Iterable
 
 import numpy as np
 
-from .base_motion import Motion
+from i2mb.motion.base_motion import Motion
+from i2mb.pathogen import UserStates
 from i2mb.utils import global_time
-from ..pathogen import UserStates
-from ..worlds import World
+from i2mb.worlds import World
 
 
 class Entry:
@@ -258,6 +257,7 @@ class ScheduleRoutines(Motion):
         regions = set(self.event_location[move_mask.ravel()].ravel())
         for r in regions:
             self.world.move_agents(move_mask.ravel() & (self.event_location == r), r)
+            print(t, "Scheduled Move")
 
         self.update_events(end_triggers, t)
 
