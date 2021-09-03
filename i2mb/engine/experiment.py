@@ -18,6 +18,7 @@ from pprint import pprint
 
 import numpy as np
 import pandas as pd
+
 from i2mb.engine.agents import AgentList
 
 
@@ -29,7 +30,7 @@ class Experiment:
         self.data_dir = self.config.get("data_dir", "./")
         self.scenario_name = config.get("scenario", {}).get("name", "test")
         self.name = self.config.get("experiment_name", "dct_v_mct")
-        self.config_name = self.config.get("name", None)
+        self.config_name = self.config.get("name", "default")
         self.overwrite_files = self.config.get("overwrite_files", False)
         self.save_files = self.config.get("save_files", False)
         self.sim_engine = None
