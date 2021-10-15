@@ -26,7 +26,7 @@ def activity_vectorized(func):
 
 class ActivityPrimitive:
     # Vectorized property names
-    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress"]
+    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress", "blocked_for"]
 
     def __init__(self, population):
         # Where the activity will take place
