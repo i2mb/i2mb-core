@@ -132,6 +132,8 @@ class ActivityQueueTest(TestCase):
             activity_queue.push(i)
 
         test_array = np.array([list(range(self.queue_size+1, 1, -1))] * self.population_size, dtype=object)
+        self.assertTrue((activity_queue.num_items == activity_queue.len).all(),
+                        msg=f"num_items: {activity_queue.num_items[0]}, Queue length: {activity_queue.len}")
         return activity_queue, test_array
 
     def test_access(self):
@@ -155,6 +157,49 @@ class ActivityQueueTest(TestCase):
         test_array[3:6, :] = new_row
         self.assertTrue((activity_queue.queue == test_array).all())
 
+    def test_jagged_push_end(self):
+        activity_queue, test_array = self.init_queue_and_test_pattern()
+        for i in range(activity_queue.len):
+            for j in range(activity_queue.len - i):
+                activity_queue[[i]].pop()
+
+            test_array[i, :i] = test_array[i, activity_queue.len - i:]
+            test_array[i, i:] = None
+            test_array[i, i] = 15
+
+        activity_queue.push_end(15)
+        self.assertTrue((activity_queue.queue == test_array).all())
+
+    def test_push_end(self):
+        activity_queue, test_array = self.init_queue_and_test_pattern()
+        activity_queue.pop()
+        activity_queue.push_end(0)
+        test_array[:, :-1] = test_array[:, 1:]
+        test_array[:, -1] = 0
+        self.assertTrue((activity_queue.queue == test_array).all())
+
+    def test_push_end_when_full(self):
+        activity_queue, test_array = self.init_queue_and_test_pattern()
+        activity_queue.push_end(0)
+        self.assertTrue((activity_queue.queue == test_array).all())
+        self.assertTrue((activity_queue.num_items == activity_queue.len).all())
+
+    def test_push_end_into_view(self):
+        # test pushing on the view
+        activity_queue, test_array = self.init_queue_and_test_pattern()
+        activity_queue[3:6].push(12)
+        activity_queue[3:6].push(11)
+        activity_queue[3:6].pop()
+        activity_queue[3:6].push_end(0)
+
+        new_row = test_array[0, :].ravel().copy()
+        new_row[1:] = new_row[:-1]
+        new_row[:1] = [12]
+        new_row[-1] = 0
+        test_array[3:6, :] = new_row
+        self.assertTrue((activity_queue.queue == test_array).all(),
+                        msg=f"{activity_queue.queue}\nTest: \n{test_array}")
+
     def test_pop(self):
         activity_queue, test_array = self.init_queue_and_test_pattern()
         # test popping full queue
@@ -162,6 +207,9 @@ class ActivityQueueTest(TestCase):
         self.assertTrue((r == test_array[:, 0]).all())
         self.assertTrue((activity_queue.queue[:, :-1] == test_array[:, 1:]).all())
         self.assertTrue((activity_queue.queue[:, -1] == None).all())
+
+        r = activity_queue.pop()
+        self.assertTrue((activity_queue.num_items == activity_queue.len - 2).all())
 
     def test_pop_from_view(self):
         activity_queue, test_array = self.init_queue_and_test_pattern()
@@ -174,6 +222,8 @@ class ActivityQueueTest(TestCase):
         self.assertTrue((r == test_r).all())
         self.assertTrue((activity_queue.queue == test_array).all(),
                         msg=f"Activity queue:\n{activity_queue}\nTestPattern:\n{test_array}")
+
+        self.assertTrue((activity_queue.num_items[3:6] == activity_queue.len - 1).all())
 
     def init_population_queue_and_test_pattern(self):
         activity_queue, test_array = self.init_queue_and_test_pattern()
