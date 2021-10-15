@@ -126,6 +126,7 @@ class ActivityNone(ActivityPrimitive):
 class ActivityList:
     def __init__(self, population):
         population_size = len(population)
+        self.population = population
         self.activity_values = np.empty((population_size, len(ActivityPrimitive.keys()), 1),  dtype=object)
         self.activities = [ActivityNone(population)]
         self.activity_types = [ActivityNone]
