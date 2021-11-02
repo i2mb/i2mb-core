@@ -25,13 +25,14 @@ from i2mb.engine.core import Engine
 from i2mb.motion.random_motion import RandomMotion
 from i2mb.utils import global_time
 from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
+from i2mb.worlds._area import Area
 
 global_time.ticks_scalar = 60 / 5 * 24
 
 
 class WorldBuilder:
     def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000,
-                 update_callback=None, no_gui=False):
+                 update_callback=None, no_gui=False, population=None):
         if update_callback is None:
             update_callback = self.__update_callback
 
@@ -53,7 +54,10 @@ class WorldBuilder:
                         "rotation": rotation, "dims": (4, 4)}
         self.worlds.append(CompositeWorld(**world_kwargs))
 
-        self.population = AgentList(10)
+        if population is None:
+            population = AgentList(10)
+
+        self.population = population
         self.universe = CompositeWorld(population=self.population, regions=self.worlds, origin=[0, 0])
         self.universe.dims += 1
 
@@ -130,6 +134,10 @@ class WorldBuilder:
 
 
 class WorldBuilderTest(TestCase):
+    def test_ids(self):
+        w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), no_gui=True)
+        self.assertEqual(len(Area.list_all_regions(w.universe)), len(w.universe._Area__id_map))
+
     def test_apartment_entry(self):
         w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), no_gui=True)
         pop1, pop2, pop3 = [ap.get_entrance_sub_region().population for ap in w.worlds]
