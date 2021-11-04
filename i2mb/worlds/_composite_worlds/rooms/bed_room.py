@@ -127,3 +127,4 @@ class BedRoom(BaseRoom):
             ids = (self.population.index.reshape(-1, 1) == ids).any(axis=1)
             self.population.motion_mask[ids] = True
             self.population.in_bed[ids] = False
+            self.population.sleep[ids] = False

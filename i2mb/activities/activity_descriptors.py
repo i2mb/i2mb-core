@@ -1,5 +1,5 @@
 from i2mb.activities import atomic_activities
-from i2mb.activities.base_activity import ActivityDescriptor
+from i2mb.activities.base_activity_descriptor import ActivityDescriptor
 
 
 class Sleep(ActivityDescriptor):

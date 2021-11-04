@@ -59,7 +59,7 @@ class ActivityQueue:
     def __str__(self):
         return str(self.queue)
 
-    def push_end(self, value, slice_=None):
+    def append(self, value, slice_=None):
         if slice_ is None:
             slice_ = slice(None)
 
@@ -82,8 +82,8 @@ class ActivityQueueView:
     def push(self, value):
         self.__queue.push(value, self.__range)
 
-    def push_end(self, value):
-        self.__queue.push_end(value, self.__range)
+    def append(self, value):
+        self.__queue.append(value, self.__range)
 
     def pop(self):
         r = self.__queue.pop(self.__range)
