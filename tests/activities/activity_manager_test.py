@@ -71,6 +71,61 @@ class TestActivityManager(TestCase):
         self.assertTrue((self.activity_list.activity_values[ids, :, 0] == [0, 0, 0, 6, 0, 0]).all(),
                         msg=f"{self.activity_list.activity_values}")
 
+    def test_consuming_programmed_activities(self):
+        self.setup_activity_manager()
+        ids = slice(3, 6)
+        # Discard mode
+        for act_id in range(2, 5):
+            activity_specs = ActivityDescriptorSpecs(act_id, 0, 0, 0, 0, 0)
+            self.activity_manager.planned_activities[ids].append(activity_specs)
+
+        for i in range(2, 10):
+            self.walk_manager(1)
+            if i > 4:
+                i = 4
+
+            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
+            self.assertListEqual([0] * 10, list(self.activity_manager.interrupted_activities.num_items))
+
+        # Interruptable
+        for act_id in range(2, 5):
+            activity_specs = ActivityDescriptorSpecs(act_id, 0, 15, 0, 0, 0)
+            self.activity_manager.planned_activities[ids].append(activity_specs)
+
+        for i in range(2, 10):
+            self.walk_manager(1)
+            if i > 4:
+                i = 4
+
+            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
+            expected = [0] * 3 + [i-2] * 3 + [0] * 4
+            self.assertListEqual(expected, list(self.activity_manager.interrupted_activities.num_items))
+
+        # Check that the interrupted  queue waits for activities to finish before proceeding
+        for i in range(4, 1, -1):
+            if i == 4:
+                self.walk_manager(1)
+            else:
+                self.walk_manager(14)
+
+            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
+            expected = [0] * 3 + [i - 2] * 3 + [0] * 4
+            self.assertListEqual(expected, list(self.activity_manager.interrupted_activities.num_items))
+
+        # Ensure default activity is active
+        self.walk_manager(14)
+
+        # Un interruptable
+        for act_id in range(2, 5):
+            activity_specs = ActivityDescriptorSpecs(act_id, 0, 15, block_for=1)
+            self.activity_manager.planned_activities[ids].append(activity_specs)
+
+        for i in range(45):
+            self.walk_manager(1)
+            self.assertEqual([i // 15 + 2] * 3, list(self.activity_manager.current_activity[ids]),
+                             msg=f"Failed at {i}")
+            self.assertListEqual([0] * 10, list(self.activity_manager.interrupted_activities.num_items))
+
     def test_current_activity_update(self):
         self.setup_activity_manager()
         self.walk_manager(4)
@@ -189,7 +244,8 @@ class TestActivityManager(TestCase):
 
         # Test with blocking location It should be available for the first user, but blocked for everyone else
         self.walk_manager(60)
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].id,
+        # Block the living room
+        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
                                                  blocks_location=True)
 
         self.activity_manager.planned_activities[3:6].append(activity_specs)
@@ -202,10 +258,17 @@ class TestActivityManager(TestCase):
 
         # Test that the location is effectively blocked for everyone after
         self.assertListEqual(list(occupied_resources), expected)
+
+        # Test that only the blocking agent is at location
+        expected = self.activity_manager.current_location_id
+        expected[3] = self.w.universe.regions[0].regions[0].id
+        expected[4:6] = self.w.universe.regions[0].get_entrance_sub_region().id
+        self.assertListEqual(list(expected), list(self.activity_manager.current_location_id))
+
         self.walk_manager(2)
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].id,
+        activity_specs = ActivityDescriptorSpecs(3, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
                                                  blocks_location=True)
-        activity_specs2 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].id)
+        activity_specs2 = ActivityDescriptorSpecs(2, 0, 50, location_id=self.w.universe.regions[0].regions[0].id)
         self.activity_manager.planned_activities[3:6].append(activity_specs)
         self.activity_manager.planned_activities[6:9].append(activity_specs2)
         occupied_resources = self.activity_manager.check_activity_resource_availability(

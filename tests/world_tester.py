@@ -24,15 +24,16 @@ from i2mb.engine.agents import AgentList
 from i2mb.engine.core import Engine
 from i2mb.motion.random_motion import RandomMotion
 from i2mb.utils import global_time
-from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom
+from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom, Restaurant
 from i2mb.worlds._area import Area
+from i2mb.worlds.office import Office
 
 global_time.ticks_scalar = 60 / 5 * 24
 
 
 class WorldBuilder:
     def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000,
-                 update_callback=None, no_gui=False, population=None):
+                 update_callback=None, no_gui=False, population=None, use_office=False):
         if update_callback is None:
             update_callback = self.__update_callback
 
@@ -52,7 +53,11 @@ class WorldBuilder:
 
         world_kwargs = {"origin": (rotation in [90, 270] and (1 + (1 + 7) * (w + 1), 1) or (1, 1 + (1 + 7) * (w + 1))),
                         "rotation": rotation, "dims": (4, 4)}
-        self.worlds.append(CompositeWorld(**world_kwargs))
+        if use_office:
+            world_kwargs["dims"] = (10, 10)
+            self.worlds.append(Office(**world_kwargs))
+        else:
+            self.worlds.append(CompositeWorld(**world_kwargs))
 
         if population is None:
             population = AgentList(10)
@@ -173,3 +178,22 @@ class WorldBuilderTest(TestCase):
             WorldBuilder(world_cls=LivingRoom, world_kwargs=dict(num_seats=6), rotation=rot)
 
         plt.show(block=True)
+
+    def test_office_build(self):
+        for rot in [0, 90, 180, 270]:
+            WorldBuilder(world_cls=Office, world_kwargs=dict(width=(10,10)), rotation=rot)
+
+        plt.show(block=True)
+
+    def test_appartment_office_office_build(self):
+        for rot in [0, 90, 180, 270]:
+            WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), rotation=rot, use_office=True)
+
+        plt.show(block=True)
+
+    def test_office_restaurant(self):
+        for rot in [0, 90, 180, 270]:
+            WorldBuilder(world_cls=Restaurant, world_kwargs=dict(), rotation=rot)
+
+        plt.show(block=True)
+

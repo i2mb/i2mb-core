@@ -25,7 +25,8 @@ class Sleep(ActivityPrimitive):
         locations = set(self.population.location[ids].ravel())
         for loc in locations:
             ids_mask = self.population.location[ids] == loc
-            loc.put_to_bed(ids[ids_mask])
+            idx = self.population.index[ids]
+            loc.put_to_bed(idx[ids_mask])
 
     def start_activity(self, t, start_activity_selector):
         return self.put_people_to_bed(t, start_activity_selector)
@@ -49,7 +50,7 @@ class Sleep(ActivityPrimitive):
 
         return
 
-    def stop_activity(self, t, ids):
+    def stop_activity(self, t, ids, descriptors_ids):
         self.has_plan[ids] = False
         awaken = self.wake_people_up(t, ids)
         self.get_people_out_of_bed(awaken)
@@ -57,18 +58,18 @@ class Sleep(ActivityPrimitive):
 
     def wake_people_up(self, t, ids):
         # Wake people up
-        enough_sleep = ids
-        left_home = ~self.population.at_home.ravel() & self.in_bed.ravel()
-        wake_up = enough_sleep | left_home
-        if wake_up.any():
-            self.sleep[wake_up] = False
-            self.last_wakeup_time[wake_up] = t
+        # enough_sleep = ids
+        # left_home = ~self.population.at_home.ravel() & self.in_bed.ravel()
+        # wake_up = enough_sleep | left_home[ids]
+        if len(ids) > 0:
+            self.sleep[ids] = False
+            self.last_wakeup_time[ids] = t
 
-        return wake_up
+        return ids
 
     def get_people_out_of_bed(self, ids):
         get_out_of_bed = ids
-        if not get_out_of_bed.any():
+        if len(get_out_of_bed) == 0:
             return np.array([], dtype=int)
 
         # self.values[:, self.in_progress_ix][get_out_of_bed] = False

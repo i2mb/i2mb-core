@@ -74,6 +74,8 @@ class ActivityPrimitive:
 
         enumerate_activity_indices(ActivityPrimitive)
 
+        self.__stop_callback = None
+
     def get_start(self) -> np.ndarray:
         return self.__values[:, self.start_ix]
 
@@ -109,6 +111,14 @@ class ActivityPrimitive:
         return cls.__keys
 
     def start_activity(self, t, start_activity):
+        if not hasattr(self.population, "location"):
+            return
+
+        locations = set(self.population.location[start_activity])
+        for loc in locations:
+            idx = self.population.index[start_activity & (self.population.location == loc)]
+            loc.start_activity(idx, self.id)
+
         return
 
     def finalize_start(self, ids):
@@ -122,17 +132,30 @@ class ActivityPrimitive:
         if self.stationary:
             self.population.motion_mask[ids] = False
 
-    def stop_activity(self, t, stop_selector):
+    def stop_activity(self, t, stop_selector, descriptor_id):
         self.location[stop_selector] = None
         self.device[stop_selector, :] = np.nan
         if self.stationary and hasattr(self.population, "motion_mask"):
             self.population.motion_mask[stop_selector] = True
+
+        if self.stationary and hasattr(self.population, "location"):
+            locations = set(self.population.location[stop_selector])
+            for loc in locations:
+                loc.stop_activity(stop_selector, self.id)
+
+        if self.__stop_callback is not None:
+            self.__stop_callback(self.id, t, stop_selector, descriptor_id)
+
+    def register_stop_callbacks(self, func):
+        self.__stop_callback = func
 
     def __repr__(self):
         return f"Activity  {type(self)})"
 
 
 class ActivityNone(ActivityPrimitive):
+    id = 0
+
     def __init__(self, population):
         super().__init__(population)
         self.stationary = False
@@ -159,6 +182,7 @@ class ActivityList:
         enumerate_activity_indices(ActivityList)
 
         self.current_activity = np.zeros(len(population), dtype=int)
+        self.current_descriptors = np.zeros(len(population), dtype=int)
 
     # def __getitem__(self, item):
     #     return ActivityListView(item, self)
@@ -238,7 +262,7 @@ class ActivityList:
         ids = self.population.index[ids]
         self.set_activity_property(prop_ix, value, self.current_activity[ids], ids=ids)
 
-    def apply_descriptors(self, t, act_descriptors, ids=None):
+    def apply_descriptors(self, t, act_descriptors, ids=None, descriptors=-1):
         if ids is None:
             ids = slice(None)
 
@@ -256,6 +280,7 @@ class ActivityList:
     def stage_activity(self, act_descriptors, ids, t):
         self.stop_activities(t, ids)
         self.current_activity[ids] = act_descriptors[:, 0]
+        self.current_descriptors[ids] = act_descriptors[:, 8]
         act_descriptors[:, 1] = t
         self.set_current_activity_property(self.start_ix, act_descriptors[:, 1], ids)
         self.set_current_activity_property(self.duration_ix, act_descriptors[:, 2], ids)
@@ -281,8 +306,9 @@ class ActivityList:
         self.reset_current_activity(stop_ids)
         for act in self.activities:
             stop_ids_ = stop_ids[(self.current_activity == act.id)[stop_ids]]
+            descriptors_ = self.current_descriptors[stop_ids_]
             if len(stop_ids_) > 0:
-                act.stop_activity(t, stop_ids_)
+                act.stop_activity(t, stop_ids_, descriptors_)
 
 # class ActivityListView:
 #     def __init__(self, range_, list_: ActivityList):

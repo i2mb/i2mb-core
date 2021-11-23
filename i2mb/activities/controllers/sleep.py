@@ -48,6 +48,9 @@ class SleepBehaviourController(Model):
 
             self.sleep_profiles.specifications[new_schedule, 1] = start
             self.sleep_profiles.specifications[new_schedule, 2] = sleep_durations
+
+            # # Make un interruptable
+            self.sleep_profiles.specifications[new_schedule, 4] = 15
             self.sleep_activity.has_plan[new_schedule] = True
             self.plan_dispatched[new_schedule] = False
 

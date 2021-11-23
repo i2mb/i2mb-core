@@ -4,7 +4,7 @@ from warnings import warn
 import numpy as np
 
 from i2mb import Model
-from i2mb.activities.base_activity import ActivityList
+from i2mb.activities.base_activity import ActivityList, ActivityNone
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorQueue, create_null_descriptor_for_act_id, \
     convert_activities_to_descriptors
 
@@ -70,6 +70,7 @@ class ActivityManager(Model):
         self.starting_activity[:] = False
         self.unblock_empty_locations()
         self.update_current_activity()
+        self.stop_activities_after_location_changed(t)
         self.stop_activities_with_duration(t)
         self.consume_interrupted_activities(t)
         self.consume_postponed_activities(t)
@@ -80,32 +81,18 @@ class ActivityManager(Model):
     def pause_activities(self, have_new_activities):
         # pause activities
         act_pause = have_new_activities.copy()
-        # act_pause &= self.activities.get_current_activity_property(self.activities.duration_ix) > 0
+        act_pause &= self.activities.get_current_activity_property(self.activities.duration_ix) > 0
         # act_pause &= self.activities.get_current_activity_property(self.activities.blocked_for_ix) == 0
         act_pause &= self.current_activity != self.current_default_activity
         if act_pause.any():
             paused_descriptors = convert_activities_to_descriptors(
                 self.current_activity[act_pause],
                 self.activities.activity_values[act_pause, :, self.current_activity[act_pause]],
-                self.current_location_id[act_pause])
+                self.current_location_id[act_pause],
+                self.activities.current_descriptors[act_pause],
+                )
 
             self.interrupted_activities[act_pause].push(paused_descriptors)
-
-    def trigger_activity_start(self, t):
-        ranks = len(self.activity_ranking)
-        for rank in range(ranks):
-            for ix, act in self.activity_ranking[rank]:
-                ids, locations = act.start_activity(t, self.current_activity_rank)
-
-                if len(ids) == 0:
-                    continue
-
-                if self.world is not None:
-                    self.relocate_agents(ids, locations)
-
-                act.finalize_start(ids)
-                self.current_activity[ids] = ix
-                self.current_activity_rank[ids] = act.rank
 
     def stop_activities_with_duration(self, t):
         """Activities that have duration set to a number greater than 0 are in_progress for that length of time. Once
@@ -142,7 +129,6 @@ class ActivityManager(Model):
             self.activities.activity_values[:, blocked_for_ix, :][mask] -= 1
 
     def relocate_agents(self, ids, location_ids):
-
         if len(self.location_ids) == 0:
             warn("No locations registered, make sure that self.register_available_locations is executed before "
                  "running the engine.", RuntimeWarning, True)
@@ -150,7 +136,7 @@ class ActivityManager(Model):
             self.current_location_id[ids] = location_ids
             return
 
-        locations_selector = np.where(self.location_ids[:, [0]] == location_ids)[0]
+        locations_selector = np.searchsorted(self.location_ids[:, 0],   location_ids)
         locations = self.location_ids[locations_selector, 2]
         unique_locations = set(locations).difference({-1})
         for loc in unique_locations:
@@ -165,7 +151,7 @@ class ActivityManager(Model):
     def consume_interrupted_activities(self, t):
         has_interrupted_activities = self.interrupted_activities.num_items > 0
 
-        # We opt not to test for in_progress, as the default activity should be interrupted to finished any
+        # We opt not to test for in_progress, as the default activity should be interrupted to finish any
         # interrupted activities.
         current_activity_is_finished = self.current_activity == self.current_default_activity
         can_resume_activity = has_interrupted_activities & current_activity_is_finished
@@ -202,8 +188,10 @@ class ActivityManager(Model):
 
     def consume_planned_activities(self, t):
         blocked_activities = np.array([], ndmin=2)
-        have_new_activities = (self.planned_activities.num_items > 0) & ~self.starting_activity
+        starting_activities = self.starting_activity & (self.current_activity != self.current_default_activity)
+        have_new_activities = (self.planned_activities.num_items > 0) & ~starting_activities
         if have_new_activities.any():
+            self.remove_time_blocked_activities(have_new_activities)
             act_ready_to_start = (self.planned_activities.start <= t) & have_new_activities
             act_wait = self.activities.get_current_activity_property(self.activities.duration_ix) > 0
             act_wait &= self.activities.get_current_activity_property(self.activities.blocked_for_ix) > 0
@@ -215,6 +203,9 @@ class ActivityManager(Model):
                 if act_ready_to_start.any():
                     new_activities = self.planned_activities[act_ready_to_start].pop()
                     self.stage_activities(act_ready_to_start, new_activities, t)
+
+        if blocked_activities.shape != (1, 0):
+            print(blocked_activities)
 
         return blocked_activities
 
@@ -337,6 +328,8 @@ class ActivityManager(Model):
 
         self.location_blocked = np.zeros(len(world_regions), dtype=bool)
         self.location_ids = np.array(world_regions)
+        sort = np.argsort(self.location_ids[:, 0])
+        self.location_ids = self.location_ids[sort]
 
     def block_locations(self, activity_descriptors):
         block_location = activity_descriptors[:, 6].astype(bool)
@@ -409,6 +402,28 @@ class ActivityManager(Model):
                 location_selector &= ~(keep_children_blocked_selector | keep_parent_blocked_selector)
 
             self.location_blocked[location_selector] = False
+
+    def remove_time_blocked_activities(self, have_new_activities):
+        new_activity_types = self.planned_activities.queue[:, 0, 0]
+        new_activity_types[new_activity_types == -1] = 0
+
+        index_vector = np.array([np.arange(len(new_activity_types), dtype=int),
+                                 np.full(len(new_activity_types), ActivityNone.blocked_for_ix),
+                                 new_activity_types])
+        index_vector = np.ravel_multi_index(index_vector, self.activities.activity_values.shape)
+        blocked_for = self.activities.activity_values.ravel()[index_vector]
+        discard = (blocked_for > 0) & have_new_activities
+        if discard.any():
+            self.planned_activities[discard].pop()
+
+    def stop_activities_after_location_changed(self, t):
+        if not hasattr(self.population, "location"):
+            return
+
+        changed_location = self.current_location_id != [loc.id for loc in self.population.location]
+        changed_location &= self.current_location_id != -1
+        if changed_location.any():
+            self.stop_activities(changed_location, t)
 
 
 

@@ -32,6 +32,12 @@ class World(Model, Area):
         """
         return
 
+    def start_activity(self, idx, descriptor_ids):
+        return
+
+    def stop_activity(self, idx, descriptor_ids):
+        return
+
     def available_places(self):
         """Return the number of available places, True if the region has no restriction on the number of
         occupants."""
@@ -223,6 +229,9 @@ class BlankSpace(Area):
         return True
 
     def draw_world(self, *args, **kwargs):
+        return
+
+    def post_init(self):
         return
 
 

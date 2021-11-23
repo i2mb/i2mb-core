@@ -6,16 +6,35 @@ from i2mb.activities.base_activity import ActivityNone
 
 
 class ActivityDescriptor:
+    __id_counter = 0
     """Agents can perform activities while in a location. The ActivityDescriptor class is a base class which describes
     where in the current location an activity can be performed."""
-    def __init__(self, location=None, device=None, pos_id=None, interruptable=True, blocks_parent=False):
+    def __init__(self, location=None, device=None, pos_id=None, interruptable=True, blocks_parent=False,
+                 blocks_location=False, duration=0, blocks_for=0):
         # Where the activity will take place
         self.location = location
         self.location_id = location.id
         self.blocks_parent = blocks_parent
+        self.blocks_location = blocks_location
+
+        # Activity duration
+        self.duration = duration
+        if type(duration) is int:
+            self.duration = lambda: duration
+
+        # Period of time for which to block an activity
+        self.blocks_for = blocks_for
+        if type(blocks_for) is int:
+            self.blocks_for = lambda: blocks_for
 
         # Device in location used during activity, e.g., bed
         self.device = device
+
+        # if the device has multiple positions
+        self.pos_id = pos_id
+
+        # Unique descriptor identifier
+        self.descriptor_id = self.get_id()
 
         # Activity availability
         self.available = True
@@ -25,22 +44,26 @@ class ActivityDescriptor:
 
         # Activity class associated to the descriptor
         self.activity_class = ActivityNone
+        self.activity_id = 0
 
         # Mark whether the activity is interruptable. An interruptable activity, will be resumed after the
         # interrupting activity finished.
         self.interruptable = interruptable
 
-        # Specify the minimum duration an activity will take before is considered finished. Activities with minimum
-        # duration will continue
-
-        if pos_id is None:
-            pos_id = 0
-
-        self.pos_id = pos_id
-
     def __repr__(self):
         return f"Activity  {type(self)}:(location:{self.location}, device:{self.device}, "\
-                 f"accumulated:{self.accumulated})"
+                 f"pos_id:{self.pos_id})"
+
+    def create_specs(self, size=1):
+        return ActivityDescriptorSpecs(act_idx=self.activity_id, duration=self.duration(), block_for=self.blocks_for(),
+                                       location_id=self.location_id, blocks_location=self.blocks_location,
+                                       blocks_parent_location=self.blocks_parent,
+                                       descriptor_id=self.descriptor_id, size=size)
+
+    @staticmethod
+    def get_id():
+        ActivityDescriptor.__id_counter += 1
+        return ActivityDescriptor.__id_counter
 
 
 class CompoundActivityDescriptor:
@@ -55,7 +78,7 @@ class CompoundActivityDescriptor:
 
 class ActivityDescriptorSpecs:
     def __init__(self, act_idx=0, start=0, duration=0, priority_level=0, block_for=0, location_id=0,
-                 blocks_location=0, blocks_parent_location=0, size=1):
+                 blocks_location=0, blocks_parent_location=0,  descriptor_id=-1, size=1):
         self.act_idx = self.align_variables(act_idx)
         self.start = self.align_variables(start)
         self.duration = self.align_variables(duration)
@@ -65,6 +88,7 @@ class ActivityDescriptorSpecs:
         self.blocks_location = self.align_variables(blocks_location)
         self.blocks_parent_location = self.align_variables(blocks_parent_location)
         self.blocks_location |= self.blocks_parent_location.astype(bool)
+        self.descriptor_id = self.align_variables(descriptor_id)
 
         self.specifications = np.hstack([self.act_idx,
                                          self.start,
@@ -73,7 +97,8 @@ class ActivityDescriptorSpecs:
                                          self.block_for,
                                          self.location_id,
                                          self.blocks_location,
-                                         self.blocks_parent_location])
+                                         self.blocks_parent_location,
+                                         self.descriptor_id])
 
         if size > 1:
             if len(self.specifications) > 1:
@@ -88,11 +113,18 @@ class ActivityDescriptorSpecs:
 
         return np.array(variable).reshape(-1, 1)
 
+    @classmethod
+    def merge_specs(cls, activity_specs):
+        size = len(activity_specs)
+        new_specs = cls(size=size)
+        new_specs.specifications[:] = np.vstack([specs.specifications for specs in activity_specs])
+        return new_specs
+
 
 class ActivityDescriptorQueue:
     """Queues to control activity description. In FILO mode The queue removes the oldest activity if more activities are
     pushed into the queue. """
-    num_descriptor_properties = 8
+    num_descriptor_properties = 9
     empty_slot = -1
 
     def __init__(self, size, depth=3):
@@ -113,6 +145,7 @@ class ActivityDescriptorQueue:
         self.location_id = self.queue[:, 5, 0]
         self.blocks_location = self.queue[:, 6, 0]
         self.block_parent_location = self.queue[:, 7, 0]
+        self.descriptor_id = self.queue[:, 8, 0]
 
     def shift_right(self, slice_=None):
         if slice_ is None:
@@ -158,7 +191,7 @@ class ActivityDescriptorQueue:
         self.queue[slice_, :, 0] = value
 
     def reset(self):
-        self.queue[:] = -1
+        self.queue[:] = ActivityDescriptorQueue.empty_slot
         self.num_items[:] = 0
 
     def __getitem__(self, item):
@@ -171,13 +204,19 @@ class ActivityDescriptorQueue:
         if slice_ is None:
             slice_ = slice(None)
 
+        if type(slice_) is int:
+            slice_ = [slice_]
+
         if type(value) is ActivityDescriptorSpecs:
             value = value.specifications
 
         # if the queue is full drop the incoming packet
         have_space = self.num_items[slice_] < self.len
         idx = self.index[slice_][have_space]
-        self.queue[idx, :, self.num_items[idx]] = value
+        if len(value) == 1:
+            self.queue[idx, :, self.num_items[idx]] = value
+        else:
+            self.queue[idx, :, self.num_items[idx]] = value[have_space]
         self.num_items[idx] += 1
 
 
@@ -201,7 +240,7 @@ class ActivityDescriptorQueueView:
         return r
 
     def reset(self):
-        self.__queue.queue[self.__range, :, :] = 0
+        self.__queue.queue[self.__range, :, :] = ActivityDescriptorQueue.empty_slot
         self.__queue.num_items[self.__range] = 0
 
 
@@ -209,13 +248,16 @@ def create_null_descriptor_for_act_id(activity_ids):
     descriptor_array = np.zeros((len(activity_ids), ActivityDescriptorQueue.num_descriptor_properties), dtype=int)
     descriptor_array[:, 0] = activity_ids
 
-    # Set location to -1, interpret as remain in place.
-    descriptor_array[:, 5] = -1
+    # Set location to ActivityDescriptorQueue.empty_slot, interpret as remain in place.
+    descriptor_array[:, 5] = ActivityDescriptorQueue.empty_slot
+
+    # Descriptor id
+    descriptor_array[:, 8] = ActivityDescriptorQueue.empty_slot
 
     return descriptor_array
 
 
-def convert_activities_to_descriptors(activity_ids, activity_view, current_location):
+def convert_activities_to_descriptors(activity_ids, activity_view, current_location, descriptor_ids):
     descriptors = np.zeros((len(activity_ids), ActivityDescriptorQueue.num_descriptor_properties))
     descriptors[:, 0] = activity_ids
     # Duration
@@ -229,4 +271,7 @@ def convert_activities_to_descriptors(activity_ids, activity_view, current_locat
 
     # location id
     descriptors[:, 5] = current_location
+
+    # Descriptor id
+    descriptors[:, 8] = descriptor_ids
     return descriptors
