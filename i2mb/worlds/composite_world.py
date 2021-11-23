@@ -237,3 +237,11 @@ class CompositeWorld(World):
             region_list.extend(r.list_all_regions())
 
         return region_list
+
+    def exit_world(self, idx, global_population):
+        if idx is not None:
+            bool_idx = self.population.find_indexes(idx)
+            if hasattr(self.population, "reset_location_activities"):
+                self.population.reset_location_activities[bool_idx] = True
+
+

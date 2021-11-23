@@ -57,6 +57,7 @@ class BaseRoom(CompositeWorld):
     def exit_world(self, idx, global_population):
         bool_ix = self.population.find_indexes(idx)
         self.population.motion_mask[bool_ix] = True
+        self.stop_activity(idx, None)
 
     def check_positions(self, mask):
         super().check_positions(mask)

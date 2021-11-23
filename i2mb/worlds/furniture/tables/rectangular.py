@@ -8,7 +8,7 @@ from ._table import MINIMUM_CHAIR_SPACE, BaseTable
 
 class RectangularTable(BaseTable):
     def __init__(self, sits=6, horizontal=False, origin=None, **kwargs):
-        super().__init__(origin, sits, **kwargs)
+        super().__init__(1, 1, origin=origin, sits=sits, **kwargs)
 
         self.horizontal = horizontal
 

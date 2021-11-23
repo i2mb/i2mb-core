@@ -62,7 +62,7 @@ class NightOut(Motion):
 
             self.world.move_agents(leave_ix, venue)
             leave_ix = leave_ix[~self.population.remain[leave_ix]]
-            venue.sit_particles(leave_ix)
+            venue.sit_agents(leave_ix)
 
         return_ix = (self.return_time <= t) & (self.population.location.reshape(-1, 1) == self.venues).any(axis=1)
 

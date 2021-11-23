@@ -93,7 +93,7 @@ class Bar(CompositeWorld, PublicSpace):
     def available_places(self):
         return len(self.available_tables) * self.seats_table + self.bar.occupants
 
-    def sit_particles(self, idx):
+    def sit_agents(self, idx):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         new_idx = np.arange(len(self.population))[bool_idx]
         if len(idx) <= 2 and self.bar.occupants + len(idx) <= self.bar.sits:

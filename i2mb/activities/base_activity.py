@@ -13,9 +13,11 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from itertools import cycle
+from typing import Union
 
 import numpy as np
+
+from i2mb.utils import Enumerator
 
 
 def activity_vectorized(func):
@@ -25,9 +27,29 @@ def activity_vectorized(func):
     return __wrapper
 
 
+def enumerate_activity_indices(cls):
+    # Making things explicit
+    enumerator = Enumerator()
+    cls.start_ix = enumerator.auto()
+    cls.duration_ix = enumerator.auto()
+    cls.elapsed_ix = enumerator.auto()
+    cls.accumulated_ix = enumerator.auto()
+    cls.in_progress_ix = enumerator.auto()
+    cls.blocked_for_ix = enumerator.auto()
+
+
 class ActivityPrimitive:
     # Vectorized property names
-    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress"]
+    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress", "blocked_for"]
+
+    # We need an class variable to hold the indexes, but they are assigned using the enumerate_activity_indices
+    # function. We use that to maintain consistent enumeration between ActivityList and ActivityPrimitive.
+    start_ix = None
+    duration_ix = None
+    elapsed_ix = None
+    accumulated_ix = None
+    in_progress_ix = None
+    blocked_for_ix = None
 
     def __init__(self, population):
         # Where the activity will take place
@@ -36,34 +58,41 @@ class ActivityPrimitive:
         # Rank determines the activities that can interrupt other activities, higher rank interrupt lower rank.
         self.rank = 0
 
+        # Activity id this value gets updated once the activity is registered with the list.
+        self.id = None
+
         n = len(self.population)
         self.location = np.full(n, None, dtype=object)
 
         # Device in location used during activity, e.g., bed
         self.device = np.full((n, 2), np.nan, dtype=float)
 
-        # Link to Activity Descriptor
-        self.descriptor = np.full(n, None, dtype=object)
-
         self.stationary = True
-
-        # Precompute property index, and getter function
-        for ix, prop_name in enumerate(ActivityPrimitive.__keys):
-            setattr(self, f"{prop_name}_ix", ix)
-
-        for ix, prop_name in enumerate(ActivityPrimitive.__keys):
-            setattr(self, f"get_{prop_name}", self.__prop_getter__(prop_name))
 
         # Map properties into a contiguous 2D array
         self.__values = np.hstack([np.zeros((n, 1), dtype=int) for k in ActivityPrimitive.__keys])
 
-    def __prop_getter__(self, prop_name):
-        ix = getattr(self, f"{prop_name}_ix")
+        enumerate_activity_indices(ActivityPrimitive)
 
-        def get_me():
-            return self.__values[:, ix]
+        self.__stop_callback = None
 
-        return get_me
+    def get_start(self) -> np.ndarray:
+        return self.__values[:, self.start_ix]
+
+    def get_duration(self) -> np.ndarray:
+        return self.__values[:, self.duration_ix]
+
+    def get_elapsed(self) -> np.ndarray:
+        return self.__values[:, self.elapsed_ix]
+
+    def get_accumulated(self) -> np.ndarray:
+        return self.__values[:, self.accumulated_ix]
+
+    def get_in_progress(self) -> np.ndarray:
+        return self.__values[:, self.in_progress_ix]
+
+    def get_blocked_for(self) -> np.ndarray:
+        return self.__values[:, self.blocked_for_ix]
 
     @property
     def values(self):
@@ -81,99 +110,79 @@ class ActivityPrimitive:
     def keys(cls):
         return cls.__keys
 
-    def start_activity(self, t, ranks):
-        start_activity = (self.get_duration() > 0) & (self.get_start() <= t)
-        start_activity &= ranks <= self.rank
-        start_activity &= self.population.at_home
-        location_available = self.location != None
-        mask = start_activity & location_available
-        self.get_in_progress()[start_activity] = True
+    def start_activity(self, t, start_activity):
+        if not hasattr(self.population, "location"):
+            return
 
-        return self.population.index[mask], self.location[mask]
+        locations = set(self.population.location[start_activity])
+        for loc in locations:
+            idx = self.population.index[start_activity & (self.population.location == loc)]
+            loc.start_activity(idx, self.id)
+
+        return
 
     def finalize_start(self, ids):
-        self.population.position[ids] = self.device[ids, :]
+        if not hasattr(self.population, "position"):
+            return
+
+        device_selector = ~np.isnan(self.device).any(axis=1) & ids
+        if device_selector.any():
+            self.population.position[device_selector] = self.device[device_selector, :]
+
         if self.stationary:
             self.population.motion_mask[ids] = False
 
-    def stop_activity(self, t):
-        stop_activity = (self.get_elapsed() > self.get_duration()).ravel()
-        self.get_in_progress()[stop_activity] = False
-        self.get_elapsed()[stop_activity] = 0
-        self.get_duration()[stop_activity] = 0
-        self.location[stop_activity] = None
-        self.device[stop_activity, :] = np.nan
-        if self.stationary:
-            self.population.motion_mask[stop_activity] = True
+    def stop_activity(self, t, stop_selector, descriptor_id):
+        self.location[stop_selector] = None
+        self.device[stop_selector, :] = np.nan
+        if self.stationary and hasattr(self.population, "motion_mask"):
+            self.population.motion_mask[stop_selector] = True
 
-        mask = stop_activity & (self.descriptor != None)
-        for act_desc in self.descriptor[mask]:
-            act_desc.available = True
+        if self.stationary and hasattr(self.population, "location"):
+            locations = set(self.population.location[stop_selector])
+            for loc in locations:
+                loc.stop_activity(stop_selector, self.id)
 
-        self.descriptor[mask] = None
+        if self.__stop_callback is not None:
+            self.__stop_callback(self.id, t, stop_selector, descriptor_id)
 
-        return self.population.index[stop_activity]
+    def register_stop_callbacks(self, func):
+        self.__stop_callback = func
 
     def __repr__(self):
         return f"Activity  {type(self)})"
 
 
 class ActivityNone(ActivityPrimitive):
+    id = 0
+
     def __init__(self, population):
         super().__init__(population)
         self.stationary = False
-
-
-class ActivityDescriptor:
-    """Agents can perform activities while in a location. The ActivityDescriptor class is a base class which describes
-    where in the current location an activity can be performed."""
-    def __init__(self, location=None, device=None, pos_id=None):
-        # Where the activity will take place
-        self.location = location
-
-        # Device in location used during activity, e.g., bed
-        self.device = device
-
-        # Activity availability
-        self.available = True
-
-        # Keep track of how much this particular activity was used.
-        self.accumulated = 0
-
-        # Keep track of how much this particular activity was used.
-        self.activity_class = ActivityNone
-        #
-        if pos_id is None:
-            pos_id = 0
-        self.pos_id = pos_id
-
-    def __repr__(self):
-        return f"Activity  {type(self)}:(location:{self.location}, device:{self.device}, "\
-                 f"accumulated:{self.accumulated})"
-
-
-class CompoundActivityDescriptor:
-    """Describes a sequence of activity descriptors. """
-    def __init__(self, activity_descriptors):
-        self.activity_descriptors = activity_descriptors
-        self.__activity_cycle = cycle(self.activity_descriptors)
-
-    def __next__(self):
-        return next(self.__activity_cycle)
+        # It usually gets added automatically so lets make sure it is the first one.
+        self.id = 0
 
 
 class ActivityList:
+    start_ix = None
+    duration_ix = None
+    elapsed_ix = None
+    accumulated_ix = None
+    in_progress_ix = None
+    blocked_for_ix = None
+
     def __init__(self, population):
         population_size = len(population)
-        self.activity_values = np.empty((population_size, len(ActivityPrimitive.keys()), 1),  dtype=object)
+        self.population = population
+        self.activity_values = np.empty((population_size, len(ActivityPrimitive.keys()), 1), dtype=object)
         self.activities = [ActivityNone(population)]
         self.activity_types = [ActivityNone]
 
         # Register vectorized property index getters
-        for ix, prop_name in enumerate(ActivityPrimitive.keys()):
-            setattr(self, f"{prop_name}_ix", ix)
+        enumerate_activity_indices(ActivityList)
 
         self.current_activity = np.zeros(len(population), dtype=int)
+        self.current_descriptors = np.zeros(len(population), dtype=int)
 
     # def __getitem__(self, item):
     #     return ActivityListView(item, self)
@@ -189,6 +198,7 @@ class ActivityList:
         self.activity_types.append(type(activity))
         self.activity_values = np.dstack([act.values for act in self.activities])
         activity.list = self
+        activity.id = len(self.activities) - 1
 
         # Connect activity values to the stack to free up memory and synchronize per activity operations with
         # ActivityList operations
@@ -199,25 +209,106 @@ class ActivityList:
     def shape(self):
         return self.activity_values.shape
 
-    def get_current_activity_property(self, prop_ix):
-        pop_size = self.activity_values.shape[0]
-        index_vector = np.array(tuple(zip(range(pop_size), [prop_ix] * pop_size, self.current_activity)))
+    def get_activity_property(self, prop_ix, activity, ids: Union[np.ndarray, slice] = None):
+        pop_size = len(activity)
+        if ids is None:
+            ids = slice(None)
+
+        elif not isinstance(ids, slice) and ids.dtype is np.dtype(bool):
+            assert len(ids) == self.activity_values.shape[0], ("If ids is a boolean array, the size should match the"
+                                                               " population size.")
+            ids = np.arange(pop_size)[ids]
+
+        ids = self.population.index[ids]
+        if len(ids) == 0:
+            return np.array([])
+
+        index_vector = np.array(tuple(zip(ids, [prop_ix] * pop_size, activity)))
         index_vector = np.ravel_multi_index(index_vector.T, self.activity_values.shape)
         return self.activity_values.ravel()[index_vector]
 
-    def set_activity_property(self, prop_ix, value, activity, ids=None):
+    def get_current_activity_property(self, prop_ix, ids=None):
+        if ids is None:
+            ids = slice(None)
+
+        return self.get_activity_property(prop_ix, self.current_activity[ids], ids)
+
+    def set_activity_property(self, prop_ix, value, activity, ids: Union[np.ndarray, slice] = None):
         pop_size = len(activity)
         if ids is None:
             pop_size = self.activity_values.shape[0]
-            ids = range(pop_size)
+            ids = slice(None)
+
+        elif not isinstance(ids, slice) and ids.dtype is np.dtype(bool):
+            assert len(ids) == self.activity_values.shape[0], ("If ids is a boolean array, the size should match the"
+                                                               " population size.")
+            if pop_size == 0:
+                return
+
+            ids = np.arange(pop_size)[ids]
+
+        ids = self.population.index[ids]
+        if len(ids) == 0:
+            return
 
         index_vector = np.array(tuple(zip(ids, [prop_ix] * pop_size, activity)))
         index_vector = np.ravel_multi_index(index_vector.T, self.activity_values.shape)
         self.activity_values.ravel()[index_vector] = value
 
     def set_current_activity_property(self, prop_ix, value, ids=None):
-        self.set_activity_property(prop_ix, value, self.current_activity, ids=None)
+        if ids is None:
+            ids = slice(None)
 
+        ids = self.population.index[ids]
+        self.set_activity_property(prop_ix, value, self.current_activity[ids], ids=ids)
+
+    def apply_descriptors(self, t, act_descriptors, ids=None, descriptors=-1):
+        if ids is None:
+            ids = slice(None)
+
+        non_blocked_activities = self.get_activity_property(self.blocked_for_ix, act_descriptors[:, 0], ids) == 0
+        # blocked_activities = act_descriptors[~non_blocked_activities, :]
+        act_descriptors = act_descriptors[non_blocked_activities, :]
+        ids = ids[non_blocked_activities]
+
+        if len(ids) > 0:
+            self.reset_current_activity(ids)
+            self.stage_activity(act_descriptors, ids, t)
+
+        return non_blocked_activities
+
+    def stage_activity(self, act_descriptors, ids, t):
+        self.stop_activities(t, ids)
+        self.current_activity[ids] = act_descriptors[:, 0]
+        self.current_descriptors[ids] = act_descriptors[:, 8]
+        act_descriptors[:, 1] = t
+        self.set_current_activity_property(self.start_ix, act_descriptors[:, 1], ids)
+        self.set_current_activity_property(self.duration_ix, act_descriptors[:, 2], ids)
+        self.set_current_activity_property(self.blocked_for_ix, act_descriptors[:, 4], ids)
+
+    def start_activities(self, ids):
+        self.set_current_activity_property(self.in_progress_ix, 1, ids)
+
+    def reset_current_activity(self, ids=None):
+        if ids is None:
+            ids = slice(None)
+
+        self.set_current_activity_property(self.in_progress_ix, 0, ids)
+        self.set_current_activity_property(self.start_ix, 0, ids)
+        self.set_current_activity_property(self.duration_ix, 0, ids)
+        self.set_current_activity_property(self.elapsed_ix, 0, ids)
+        self.set_current_activity_property(self.blocked_for_ix, 0, ids)
+
+    def stop_activities(self, t, stop_ids):
+        if len(stop_ids) == 0:
+            return
+
+        self.reset_current_activity(stop_ids)
+        for act in self.activities:
+            stop_ids_ = stop_ids[(self.current_activity == act.id)[stop_ids]]
+            descriptors_ = self.current_descriptors[stop_ids_]
+            if len(stop_ids_) > 0:
+                act.stop_activity(t, stop_ids_, descriptors_)
 
 # class ActivityListView:
 #     def __init__(self, range_, list_: ActivityList):

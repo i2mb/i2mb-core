@@ -26,7 +26,8 @@ class BedRoom(BaseRoom):
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
-        self.local_activities.extend([i2mb.activities.activity_descriptors.Sleep(self, b) for b in self.beds])
+        self.local_activities.extend([i2mb.activities.activity_descriptors.Sleep(location=self, device=b) for b in
+                                      self.beds])
 
     def assign_beds(self, ids):
         if len(ids) > len(self.beds):
@@ -127,3 +128,4 @@ class BedRoom(BaseRoom):
             ids = (self.population.index.reshape(-1, 1) == ids).any(axis=1)
             self.population.motion_mask[ids] = True
             self.population.in_bed[ids] = False
+            self.population.sleep[ids] = False

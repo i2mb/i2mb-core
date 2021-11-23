@@ -189,6 +189,8 @@ class Apartment(CompositeWorld):
         # print(bool_idx)
         bool_idx = self.population.find_indexes(idx)
         self.population.at_home[bool_idx] = False
+        if hasattr(self.population, "reset_location_activities"):
+            self.population.reset_location_activities[bool_idx] = True
         self.population.remove(idx)
 
 

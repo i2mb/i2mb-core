@@ -21,82 +21,224 @@ from matplotlib import pyplot as plt
 
 from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.base_activity import ActivityList
-from i2mb.activities.controllers.sleep import SleepBehaviour
+from i2mb.activities.controllers.sleep import SleepBehaviourController
 from i2mb.utils import global_time
-from i2mb.worlds import BedRoom, Apartment
+from i2mb.worlds import Apartment
 from tests.world_tester import WorldBuilder
 
-global_time.ticks_scalar = 60 * 24
+global_time.ticks_hour = 60 // 5
 
 
 class TestSleepBehaviour(TestCase):
-    def test_sleep_in_bedroom(self):
-        w = WorldBuilder(BedRoom, world_kwargs=dict(num_beds=2), sim_duration=global_time.make_time(day=4))
-        start = 0
-        end = 5
-        for w_ in w.worlds:
-            w_.assign_beds(w.population.index[start:end])
-            start += 5
-            end += 5
+    def setup_engine(self, callbacks=None, no_gui=True):
+        self.w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
+                              update_callback=callbacks, no_gui=no_gui)
+        print(f"Running for {global_time.make_time(day=3)} ticks")
 
-        sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
-        sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
-        activity_list = ActivityList(w.population)
+        self.population = self.w.population
+        self.activity_list = ActivityList(self.w.population)
+        self.activity_manager = ActivityManager(self.w.population, self.w.universe, activities=self.activity_list)
 
-        sleep_model = SleepBehaviour(w.population, activity_list, sleep_duration, sleep_midpoint)
-        w.engine.models.append(sleep_model)
-        plt.show()
+        # sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
+        # sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
+        def sleep_duration(shape):
+            return np.ones(shape, dtype=int) * global_time.make_time(hour=8)
+
+        def sleep_midpoint(shape):
+            return np.ones(shape, dtype=int) * global_time.make_time(hour=1)
+
+        sleep_model = SleepBehaviourController(self.w.population, self.activity_manager, self.w.universe,
+                                               sleep_duration,
+                                               sleep_midpoint)
+        self.sleep_model = sleep_model
+        self.w.engine.models.extend([sleep_model, self.activity_manager])
+        self.w.engine.post_init_modules()
+
+    def walk_engine(self, num_steps):
+        t = self.w.engine.time
+        for frame, rs in enumerate(self.w.engine.step(), start=t):
+            stop = self.w.process_stop_criteria(frame)
+            if stop:
+                return
+
+            num_steps -= 1
+            if num_steps <= 0:
+                return
+
+            self.w.update_callback(self.w, frame)
 
     def test_sleep_in_apartment(self):
         def move_agents_to_rooms(world_builder, frame):
             delta = global_time.make_time(hour=12)
             if frame == global_time.to_current(delta, frame):
                 for apartment in world_builder.worlds:
+                    if type(apartment) is not Apartment:
+                        continue
+
                     population = apartment.inhabitants
                     world_builder.universe.move_agents(population.index, apartment.living_room)
 
-        w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
-                         update_callback=move_agents_to_rooms)
+            self.assertFalse(np.isnan(self.population.position).any())
 
-        activity_list = ActivityList(w.population)
-        activity_manager = ActivityManager(w.population, w.universe, activities=activity_list)
-
-        sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
-        sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
-
-        sleep_model = SleepBehaviour(w.population, activity_list, sleep_duration, sleep_midpoint)
-        w.engine.models.extend([sleep_model, activity_manager])
-        w.engine.post_init_modules()
+        self.setup_engine(move_agents_to_rooms, no_gui=False)
         plt.show()
 
-    def test_sleep_in_apartment_no_gui(self):
+    def test_sleep_in_apartment_no_gui_simple_schedule(self):
         def move_agents_to_rooms(world_builder, frame):
             delta = global_time.make_time(hour=12)
             if frame == global_time.to_current(delta, frame):
                 for apartment in world_builder.worlds:
+                    if type(apartment) is not Apartment:
+                        continue
+
                     population = apartment.inhabitants
                     world_builder.universe.move_agents(population.index, apartment.living_room)
 
-        w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
-                         update_callback=move_agents_to_rooms, no_gui=True)
+            self.assertTrue((self.activity_manager.interrupted_activities.num_items == 0).all(),
+                            msg=f"Frame {frame}, \n{self.activity_manager.interrupted_activities.queue[:, :, 0]}")
+            self.assertTrue((self.activity_manager.planned_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.postponed_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.triggered_activities.num_items == 0).all())
 
+            __expected_current_activity = [0] * len(self.w.population)
+            if (self.activity_manager.current_activity == 1).all():
+                self.assertTrue(self.activity_manager.activities.activities[1].in_bed.all(),
+                                msg=f"Error occurred at frame {frame}")
+                __expected_current_activity = [1] * len(self.w.population)
+                expected_location = list(self.sleep_model.sleep_profiles.specifications[:, 5])
+                current_location = list([r.id for r in self.population.location])
+                self.assertListEqual(expected_location, current_location,
+                                     msg=f"Error occurred at frame {frame}")
+            elif global_time.hour(frame) < 12:
+                expected_location = list(self.sleep_model.sleep_profiles.specifications[:, 5])
+                current_location = list([r.id for r in self.population.location])
+                self.assertListEqual(expected_location, current_location,
+                                     msg=f"Error occurred at frame {frame}")
 
-        print(f"Running for {global_time.make_time(day=3)} ticks")
-        activity_list = ActivityList(w.population)
-        activity_manager = ActivityManager(w.population, w.universe, activities=activity_list)
+            __current_activity = list(self.activity_manager.current_activity)
+            self.assertListEqual(__expected_current_activity, __current_activity,
+                                 msg=f"Error occurred at frame {frame}")
 
-        sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
-        sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
+            self.assertFalse((self.population.position == np.nan).any())
 
-        sleep_model = SleepBehaviour(w.population, activity_list, sleep_duration, sleep_midpoint)
-        w.engine.models.extend([sleep_model, activity_manager])
-        w.engine.post_init_modules()
-        for frame, rs in enumerate(w.engine.step()):
-            stop = w.process_stop_criteria(frame)
-            if stop:
-                break
+        self.setup_engine(move_agents_to_rooms, no_gui=True)
+        self.walk_engine(1)
+        expected_current_activity = [1] * len(self.w.population)
+        current_activity = list(self.activity_manager.current_activity)
+        self.assertListEqual(expected_current_activity, current_activity)
 
-            elapsed_ix = activity_manager.activities.start_ix
-            print(frame, activity_manager.activities.get_current_activity_property(elapsed_ix))
+        self.walk_engine(global_time.make_time(day=4))
 
+    def test_sleep_walkers_nogui(self):
+        def move_agents_to_rooms(world_builder, frame):
+            delta = global_time.make_time(hour=4)
+            if frame == global_time.to_current(delta, frame):
+                for apartment in world_builder.worlds:
+                    if type(apartment) is not Apartment:
+                        continue
 
+                    population = apartment.inhabitants
+                    world_builder.universe.move_agents(population.index, apartment.living_room)
+
+                return
+
+            self.assertTrue((self.activity_manager.interrupted_activities.num_items == 0).all(),
+                            msg=f"Frame {frame}, \n{self.activity_manager.interrupted_activities.queue[:, :, 0]}")
+            self.assertTrue((self.activity_manager.planned_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.postponed_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.triggered_activities.num_items == 0).all())
+
+            __expected_current_activity = [0] * len(self.w.population)
+            if (self.activity_manager.current_activity == 1).all():
+                self.assertTrue(self.activity_manager.activities.activities[1].in_bed.all(),
+                                msg=f"Error occurred at frame {frame}")
+                __expected_current_activity = [1] * len(self.w.population)
+                expected_location = list(self.sleep_model.sleep_profiles.specifications[:, 5])
+                current_location = list([r.id for r in self.population.location])
+                self.assertListEqual(expected_location, current_location,
+                                     msg=f"Error occurred at frame {frame}")
+
+                self.assertTrue(self.population.sleep.all())
+
+            __current_activity = list(self.activity_manager.current_activity)
+            self.assertListEqual(__expected_current_activity, __current_activity,
+                                 msg=f"Error occurred at frame {frame}")
+
+            self.assertFalse((self.population.position == np.nan).any())
+
+        self.setup_engine(move_agents_to_rooms, no_gui=True)
+        self.walk_engine(1)
+        expected_current_activity = [1] * len(self.w.population)
+        current_activity = list(self.activity_manager.current_activity)
+        self.assertListEqual(expected_current_activity, current_activity)
+
+        self.walk_engine(global_time.make_time(day=4))
+
+    def test_random_sleep_patterns(self):
+        def move_agents_to_rooms(world_builder, frame):
+            delta = global_time.make_time(hour=12)
+            if frame == global_time.to_current(delta, frame):
+                for apartment in world_builder.worlds:
+                    if type(apartment) is not Apartment:
+                        continue
+
+                    population = apartment.inhabitants
+                    world_builder.universe.move_agents(population.index, apartment.living_room)
+
+                return
+
+            self.assertTrue((self.activity_manager.interrupted_activities.num_items == 0).all(),
+                            msg=f"Frame {frame}, \n{self.activity_manager.interrupted_activities.queue[:, :, 0]}")
+            self.assertTrue((self.activity_manager.planned_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.postponed_activities.num_items == 0).all())
+            self.assertTrue((self.activity_manager.triggered_activities.num_items == 0).all())
+
+            if (self.activity_manager.current_activity == 1).any():
+                expected = (self.activity_manager.current_activity == 1).sum()
+                current = self.activity_manager.activities.activities[1].in_bed.sum()
+                self.assertEqual(expected, current,
+                                 msg=f"Error occurred at frame {frame}")
+
+                sleeping = self.activity_manager.current_activity == 1
+                expected_location = list(self.sleep_model.sleep_profiles.specifications[sleeping, 5])
+                current_location = list([r.id for r in self.population.location[sleeping]])
+                self.assertListEqual(expected_location, current_location,
+                                     msg=f"Error occurred at frame {frame}")
+
+                self.assertEqual((self.activity_manager.current_activity == 1).sum(),
+                                 self.population.sleep.sum(),
+                                 msg=f"Error occurred at frame {frame}")
+
+            self.assertFalse((self.population.position == np.nan).any())
+
+        self.setup_engine(move_agents_to_rooms, no_gui=True)
+        sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(minutes=30))
+        sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(minutes=30))
+        self.sleep_model.sleep_midpoint = sleep_midpoint
+        self.sleep_model.sleep_duration = sleep_duration
+        self.walk_engine(1)
+        expected_current_activity = [1] * len(self.w.population)
+        current_activity = list(self.activity_manager.current_activity)
+        self.assertListEqual(expected_current_activity, current_activity)
+
+        self.walk_engine(global_time.make_time(day=4))
+
+    def test_sleep_in_apartment_random_sleep_schedule(self):
+        def move_agents_to_rooms(world_builder, frame):
+            delta = global_time.make_time(hour=12)
+            if frame == global_time.to_current(delta, frame):
+                for apartment in world_builder.worlds:
+                    if type(apartment) is not Apartment:
+                        continue
+
+                    population = apartment.inhabitants
+                    world_builder.universe.move_agents(population.index, apartment.living_room)
+
+            self.assertFalse(np.isnan(self.population.position).any())
+
+        self.setup_engine(move_agents_to_rooms, no_gui=False)
+        sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(minutes=30))
+        sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(minutes=30))
+        self.sleep_model.sleep_midpoint = sleep_midpoint
+        self.sleep_model.sleep_duration = sleep_duration
+        plt.show()

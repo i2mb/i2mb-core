@@ -45,6 +45,7 @@ class SimulationTime:
         return v // self.ticks_month * self.time_scalar
 
     def to_current(self, delta, t):
+        """Returns the time 't' truncated at the beginning of the last day and adds 'delta'."""
         return self.days(t) * self.time_scalar + delta
 
     def make_time(self, day=0, month=0, hour=0, minutes=0, week_day=0, delta=0):

@@ -28,6 +28,9 @@ class ExitInit(type):
 
 
 class Area(metaclass=ExitInit):
+    __num_instances = 0
+    __id_map = {}
+
     def __init__(self, dims=None, height=None, width=None, origin=None, rotation=0, scale=1, subareas=None):
         if subareas is None:
             subareas = []
@@ -63,6 +66,9 @@ class Area(metaclass=ExitInit):
         self.origin = origin
 
         self.parent = None
+        self.id = Area.__num_instances
+        Area.__num_instances += 1
+        Area.__id_map[self.id] = self
 
     @property
     def opposite(self):

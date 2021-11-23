@@ -59,7 +59,7 @@ class Restaurant(CompositeWorld, PublicSpace):
     def can_sit_party(self, idx):
         return self.available_places() > len(idx)
 
-    def sit_particles(self, idx):
+    def sit_agents(self, idx):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         new_idx = np.arange(len(self.population))[bool_idx]
         num_tables = int(np.ceil(len(idx) / self.seats_table))

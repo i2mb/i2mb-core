@@ -112,7 +112,7 @@ class ApartmentWorld(CompositeWorld):
             switch = at_target & dining
             if switch.any():
                 self.move_agents(switch, self.apartment.dining_room)
-                self.apartment.dining_room.sit_particles(self.population.index[switch])
+                self.apartment.dining_room.sit_agents(self.population.index[switch])
                 self.population.is_eating[switch] = True
                 self.population.is_preparing[switch] = False
 

@@ -8,10 +8,13 @@ class RoutineCollection:
 
 
 class Routine:
-    def __init__(self, population_size, activity_indices, activity_list, padding_index=0):
+    def __init__(self, activity_list, activity_indices=None, padding_index=0):
+        if activity_indices is None:
+            activity_indices = list(range(len(activity_list.activities)))
+
         self.activity_list = activity_list
         self.activity_indices = activity_indices
-        self.queue = ActivityQueue(population_size, len(activity_indices), padding_index)
+        self.queue = ActivityQueue(len(self.activity_list.population), len(activity_indices), padding_index)
         self.reset_routine_queue()
 
     def reset_routine_queue(self, ids=None, skip_activities=None):
