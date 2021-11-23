@@ -1,10 +1,11 @@
 from collections import Counter
 
 import numpy as np
+
 from i2mb.engine.agents import AgentList
 from i2mb.pathogen import UserStates
 from i2mb.pathogen.base_pathogen import Pathogen, SymptomLevels
-from i2mb.utils.spatial_utils import region_ravel_multi_index, contacts_within_radius
+from i2mb.utils.spatial_utils import contacts_within_radius
 
 
 class RegionVirusDynamicExposure(Pathogen):
@@ -27,7 +28,8 @@ class RegionVirusDynamicExposure(Pathogen):
                  illness_duration_distribution=None,
                  infectious_duration_pso_distribution=None,
                  incubation_duration_distribution=None,
-                 symptom_distribution=None, death_rate=0.05, icu_beds=None):
+                 symptom_distribution=None, death_rate=0.05, icu_beds=None,
+                 locations_of_interest=None):
         Pathogen.__init__(self, population)
 
         self.icu_beds = icu_beds
@@ -146,6 +148,10 @@ class RegionVirusDynamicExposure(Pathogen):
         self.time_of_infection[infected, 0] = t_infection
         self.location_contracted[infected, 0] = [type(loc).__name__.lower() for loc in
                                                  self.population.location[infected]]
+        # TODO: Very ugly fix.
+        at_home = self.population.at_home[infected]
+        self.location_contracted[infected[at_home], 0] = "home"
+
         self.outcomes[infected, 0] = self.__get_outcomes(num_p0s)
 
     def update_states(self, t):

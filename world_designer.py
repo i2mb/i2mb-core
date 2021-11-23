@@ -6,7 +6,6 @@ import numpy as np
 
 from i2mb.engine.agents import AgentList
 
-
 if __name__ == "__main__":
     parser = ArgumentParser(description='Helps design new worlds.')
     parser.add_argument("--world", help="Specify the world's class name.")
@@ -39,11 +38,11 @@ if __name__ == "__main__":
         # world.origin = [1, 1]
 
         # world.move_agents(population.index, world)
-        # world.sit_particles(population.index[:2])
-        # world.sit_particles(population.index[2:3])
-        # world.sit_particles(population.index[3:10])
-        # world.sit_particles(population.index[10:12])
-        # world.sit_particles(population.index[12:])
+        # world.sit_agents(population.index[:2])
+        # world.sit_agents(population.index[2:3])
+        # world.sit_agents(population.index[3:10])
+        # world.sit_agents(population.index[10:12])
+        # world.sit_agents(population.index[12:])
 
         fig, ax = plt.subplots(1)
 

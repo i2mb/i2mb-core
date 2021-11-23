@@ -3,6 +3,7 @@ from random import uniform, randint
 import numpy as np
 
 import i2mb.activities.activity_descriptors
+from i2mb.utils import global_time
 from i2mb.worlds.furniture.kitchenUnit import KitchenUnit
 from ._room import BaseRoom
 
@@ -37,7 +38,12 @@ class Kitchen(BaseRoom):
         self.furniture_upper = np.empty((n, 2))
         self.furniture_origins = np.empty((n, 2))
         self.get_furniture_grid(outline)
-        self.local_activities.extend([i2mb.activities.activity_descriptors.Cook(self, self.kitchen_unit)])
+        self.local_activities.extend([
+            i2mb.activities.activity_descriptors.Cook(
+                location=self,
+                duration=global_time.make_time(minutes=30),
+                blocks_for=1,
+                device=self.kitchen_unit)])
 
     def get_furniture_grid(self, outline):  # TODO comment not really origins
         k = self.kitchen_unit
@@ -62,13 +68,6 @@ class Kitchen(BaseRoom):
                                           origin[1] - offset[(int(k.rotation / 90)) % 4]]
             self.furniture_upper[2] = [origin[0] + offset[(int(k.rotation / 90) + 3) % 4],
                                        origin[1] + offset[(int(k.rotation / 90) + 2) % 4]]
-
-    def exit_world(self, idx, global_population):
-        super().exit_world(idx, None)
-        bool_ix = self.population.find_indexes(idx)
-        # self.population.stay[bool_ix] = False
-        # self.population.accumulated_stay[bool_ix] = 0
-        # self.population.current_stay_duration[bool_ix] = -np.inf
 
     def move(self, n):
         # move around along kitchen unit -> get borders (0.1 away for nicer visual)
@@ -105,11 +104,16 @@ class Kitchen(BaseRoom):
             x, y = y, x
         return np.concatenate((x, y), axis=1)
 
+    def start_activity(self, idx, descriptor_ids):
+        bool_ix = self.population.find_indexes(idx)
+        self.population.motion_mask[bool_ix] = True
+        self.population.position[bool_ix] = self.dims/2
+
+    def stop_activity(self, idx, descriptor_ids):
+        pass
+
     def step(self, t):
-        if not hasattr(self, "population"):
-            return
-        if not self.population:
-            return
+        return
 
         # # update staying duration
         # stay_update = self.population.stay.ravel()
@@ -146,5 +150,3 @@ class Kitchen(BaseRoom):
         #
         #     self.population.current_stay_duration[prepare] = stay_duration
         #     self.population.stay[prepare] = True
-
-        return

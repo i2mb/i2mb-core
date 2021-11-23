@@ -151,7 +151,7 @@ class ApartmentBuildingWorld(CompositeWorld):
                     bool_idx = (self.population.home == a).ravel() & switch
                     if bool_idx.any():
                         self.move_agents(bool_idx, a.dining_room)
-                        a.dining_room.sit_particles(self.population.index[bool_idx])
+                        a.dining_room.sit_agents(self.population.index[bool_idx])
                 self.population.is_eating[switch] = True
                 self.population.is_preparing[switch] = False
 

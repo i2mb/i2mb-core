@@ -153,6 +153,9 @@ class AgentList:
         for p, v in zip(self.__agents, values):
             object.__setattr__(p, prop, v)
 
+    # def find_indexes(self, idx):
+    #     return (self.index.reshape((-1, 1)) == idx.ravel()).any(axis=1).ravel()
+
 
 class Agent:
     def __init__(self, id_):

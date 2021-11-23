@@ -1,5 +1,3 @@
-from collections import deque
-
 import numpy as np
 
 import i2mb.activities.activity_descriptors
@@ -49,15 +47,12 @@ class LivingRoom(BaseRoom):
         self.arrange_furniture()
 
         self.arrange_sitting_positions_n_targets()
-        self.sitting_pos = np.array(self.sitting_pos)
-        self.target_pos = np.array(self.target_pos)
+        # self.sitting_pos = np.array(self.sitting_pos)
+        # self.target_pos = np.array(self.target_pos)
 
         self.seats = []
         self.seats.extend(s for s in self.sofa)
         self.seats.extend(a for a in self.armchair)
-
-        self.available_seats = deque(self.seats, )
-        self.seat_assignment = {}
 
         self.add_furniture(self.sofa)
         self.add_furniture(self.armchair)
@@ -66,7 +61,16 @@ class LivingRoom(BaseRoom):
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
-        self.local_activities.extend([i2mb.activities.activity_descriptors.Rest(self, s) for s in self.seats])
+
+        self.local_activities.extend([
+            i2mb.activities.activity_descriptors.Rest(location=self, duration=45, blocks_for=1)
+            # i2mb.activities.activity_descriptors.Rest(location=self, device=s, duration=20) for s in
+            # self.seats for p in range(s.num_seats)
+        ])
+
+        # Seat management
+        self.available_seats = np.array([pos for s in self.seats for pos in s.get_sitting_position()])
+        self.seat_assignment = np.ones(len(self.available_seats)) * -1
 
     def arrange_furniture(self):
         if self.num_seats == 1:
@@ -95,120 +99,46 @@ class LivingRoom(BaseRoom):
 
     def arrange_sitting_positions_n_targets(self):
         for s in self.sofa:
-            s.set_sitting_position()
-            s.set_sleeping_position()
             self.sitting_pos.extend(s.get_sitting_position())
             self.target_pos.extend(s.get_sitting_target())
 
         for a in self.armchair:
-            a.set_sitting_position()
-            self.sitting_pos.extend(a.get_sitting_position())
-            self.target_pos.extend(a.get_sitting_target())
+            self.sitting_pos.extend(a.sitting_pos)
+            self.target_pos.extend(a.sitting_pos)
 
     def sit_particles(self, idx):
-        bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
-        new_idx = np.arange(len(self.population))[bool_idx]
-        num_seats = len(idx)
-        num = 0
-        start = 0
-        for t in range(num_seats):
-            if not self.available_seats:
-                return
+        bool_idx = self.population.find_indexes(idx)
+        required_seats = len(idx)
+        available_seats = (self.seat_assignment == -1)
 
-            seat = self.available_seats[0]
-            end = seat.num_seats - seat.occupants
-            seats = len(idx[start:start + end])
-            num += seats
+        if available_seats.sum() > 0:
+            if required_seats > available_seats.sum():
+                required_seats = available_seats.sum()
 
-            self.population.target[new_idx[start:start + end]] = seat.get_sitting_target()[
-                                                                 seat.occupants:seats + seat.occupants]
-            self.population.sitting_position[new_idx[start:start + end]] = seat.get_sitting_position()[
-                                                                           seat.occupants:seats + seat.occupants]
-            self.seat_assignment.update(dict.fromkeys(idx[start:start + end], seat))
-            seat.occupants += seats
-            start += end
+            choose_seats = np.where(available_seats)[0][:required_seats]
+            self.seat_assignment[choose_seats] = idx[:required_seats]
 
-            if seat.occupants == seat.num_seats:
-                x = self.available_seats.popleft()
-            if num >= len(idx):
-                break
+            choose_idx = np.where(bool_idx)[0][:required_seats]
+            self.population.position[choose_idx] = self.available_seats[choose_seats]
+
+        if required_seats < len(idx):
+            choose_idx = np.where(~bool_idx)[0][:required_seats]
+            self.population.position[choose_idx] = np.random.random((len(idx) - required_seats, 2)) * self.dims
 
     def stand_up_particle(self, idx):
-        for ix in idx:
-            seat = self.seat_assignment[ix]
-            seat.occupants -= 1
-            del self.seat_assignment[ix]
-            in_queue = seat in self.available_seats
-            if not in_queue:
-                self.available_seats.append(seat)
+        assigned_seats = (self.seat_assignment.reshape(-1, 1) == idx).any(axis=1)
+        self.seat_assignment[assigned_seats] = -1
+        bool_idx = self.population.find_indexes(idx)
+        self.population.position[bool_idx] = self.dims / 2
 
-    # def exit_world(self, idx):
-    #     bool_ix = self.population.find_indexes(idx)
-    #     self.population.motion_mask[bool_ix] = True
-    #     self.population.accumulated_sitting[bool_ix] = 0
-    #     self.population.current_sitting_duration[bool_ix] = -np.inf
-    #     self.population.next_sitting_time[bool_ix] = -np.inf
-    #     sitting = self.population.is_sitting.ravel() & bool_ix
-    #     if sitting.any():
-    #         self.population.is_sitting[sitting] = False
-    #         self.stand_up_particle(self.population.index[sitting])
+    def start_activity(self, idx, activity_id):
+        self.sit_particles(idx)
+
+    def stop_activity(self, idx, descriptor_ids):
+        self.stand_up_particle(idx)
 
     def step(self, t):
         if not hasattr(self, "population"):
             return
         if not self.population:
             return
-
-        # n = len(self.population)
-        # # update sitting duration
-        # sit_update = self.population.is_sitting.ravel()
-        # if sit_update.any():
-        #     self.population.accumulated_sitting[sit_update] += 1
-        #
-        # acc_sitting = self.population.accumulated_sitting.ravel()
-        # cur_sitting = self.population.current_sitting_duration.ravel()
-        # enough_sitting = (acc_sitting > cur_sitting)
-        # enough_sitting = sit_update & enough_sitting
-        #
-        # if enough_sitting.any():
-        #     self.population.is_sitting[enough_sitting] = False
-        #     self.stand_up_particle(self.population.index[enough_sitting])
-        #     self.population.motion_mask[enough_sitting] = True
-        #     self.population.target[enough_sitting] = np.nan
-        #     self.population.accumulated_sitting[enough_sitting] = 0
-        #     self.population.current_sitting_duration[enough_sitting] = -np.inf
-        #
-        # at_target = np.isclose(self.population.target, self.population.position)
-        # at_target = np.array([all(i) for i in at_target])
-        # at_target = at_target & self.population.motion_mask.ravel()
-        #
-        # if at_target.any():
-        #     self.population.motion_mask[at_target] = False
-        #     self.population.target[at_target] = self.population.sitting_position[at_target]
-        #
-        # next_sit = self.population.next_sitting_time.ravel()
-        # sit_again = (next_sit < t)
-        #
-        # if sit_again.any():
-        #     # sit down for 70 to 90 minutes
-        #     sit_duration = partial(np.random.normal, global_time.make_time(minutes=80),
-        #                            global_time.make_time(minutes=5))((sit_again.sum(), 1))
-        #
-        #     self.population.current_sitting_duration[sit_again] = sit_duration
-        #
-        #     has_target = np.ones((n, 2), dtype=bool)
-        #     has_target[sit_again] = (self.population.target[sit_again] == self.entry_point)
-        #     has_target = np.array([all(i) for i in has_target])
-        #     has_no_target = ~has_target & ~self.population.is_sitting.ravel()
-        #
-        #     if has_no_target.any():
-        #         self.sit_particles(self.population.index[has_no_target])
-        #         self.population.is_sitting[has_no_target] = True
-        #
-        #     # walk around for 6 to 14 minutes
-        #     next_time = partial(np.random.normal, global_time.make_time(minutes=10),
-        #                         global_time.make_time(minutes=2))(
-        #         (sit_again.sum(), 1))
-        #     self.population.next_sitting_time[sit_again] = t + (next_time + sit_duration).astype(int)
-        #
-        # return

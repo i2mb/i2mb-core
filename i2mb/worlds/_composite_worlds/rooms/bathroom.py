@@ -1,8 +1,8 @@
-from random import uniform
-
 import numpy as np
 
 import i2mb.activities.activity_descriptors
+from i2mb.activities.base_activity import ActivityNone
+from i2mb.utils import global_time
 from i2mb.worlds.furniture.furniture_bath.bathtub import Bathtub
 from i2mb.worlds.furniture.furniture_bath.bathtub import Shower
 from i2mb.worlds.furniture.furniture_bath.sink import Sink
@@ -39,53 +39,36 @@ class Bathroom(BaseRoom):
         self.furniture_origins = np.empty((len(self.furniture) - 1, 2))
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
-        self.local_activities.extend([i2mb.activities.activity_descriptors.Toilet(self, self.toilet),
-                                      i2mb.activities.activity_descriptors.Sink(self, self.sink),
-                                      i2mb.activities.activity_descriptors.Shower(self, self.bathtub)])
+        self.activities = [
+            i2mb.activities.activity_descriptors.Toilet(location=self, device=self.toilet,
+                                                        duration=global_time.make_time(minutes=5),
+                                                        blocks_location=True,
+                                                        blocks_for=global_time.make_time(hour=3)
+                                                        ),
+            i2mb.activities.activity_descriptors.Sink(location=self, device=self.sink),
+            i2mb.activities.activity_descriptors.Shower(location=self, device=self.bathtub,
+                                                        duration=global_time.make_time(minutes=15),
+                                                        blocks_for=global_time.make_time(hour=22),
+                                                        blocks_location=True,
+                                                        )]
 
-    def enter_world(self, n, idx=None, arriving_from=None):
-        self.occupied = True
-        return [self.entry_point] * n
+        self.local_activities.extend(self.activities)
+        self.descriptor_idx = {}
 
-    def exit_world(self, idx, global_population):
+    def post_init(self):
+        self.descriptor_idx = {d.activity_id: d for d in self.activities}
+
+    def start_activity(self, idx, activity_id):
+        if activity_id == ActivityNone.id:
+            return
+
         bool_ix = self.population.find_indexes(idx)
-
-        self.population.motion_mask[bool_ix] = True
-        # self.population.stay[bool_ix] = False
-        # self.population.accumulated_stay[bool_ix] = 0
-        # self.population.current_stay_duration[bool_ix] = -np.inf
-        # for ix in self.population.index[bool_ix]:
-        #     del self.tasks[ix]
-
-    def get_sink_area(self):
-        y0, y1 = self.furniture_origins[0][1], self.furniture_upper[0][1]
-        x0, x1 = self.furniture_origins[0][0], self.furniture_upper[0][0]
-        if self.rotation == 0:
-            x1 = min(x0, x1)
-            x0 = x1 - self.sink.width
-        if self.rotation == 180:
-            x0 = max(x0, x1)
-            x1 = x0 + self.sink.width
-        if self.rotation == 90:
-            y1 = min(y0, y1)
-            y0 = y1 - self.sink.height
-        if self.rotation == 270:
-            y0 = max(y0, y1)
-            y1 = y0 + self.sink.width
-        return [[min(x0, x1), max(x0, x1)], [min(y0, y1), max(y0, y1)]]
-
-    def move_to_sink(self, n):
-        # move agent somewhere in the sink area
-        x = np.array([[uniform(self.sink_area[0][0], self.sink_area[0][1])] for i in range(n)])
-        y = np.array([[uniform(self.sink_area[1][0], self.sink_area[1][1])] for i in range(n)])
-        return np.concatenate((x, y), axis=1)
+        descriptor = self.descriptor_idx[activity_id]
+        device = descriptor.device
+        self.population.position[bool_ix] = device.get_activity_position()
 
     def step(self, t):
-        if not hasattr(self, "population"):
-            return
-        if not self.population:
-            self.occupied = False
-            return
+        return
 
         # # update staying duration
         # stay_update = self.population.stay.ravel()

@@ -1,7 +1,7 @@
 import numpy as np
-from i2mb.worlds.furniture.base_furniture import BaseFurniture
-
 from matplotlib.patches import Rectangle
+
+from i2mb.worlds.furniture.base_furniture import BaseFurniture
 
 
 class Sofa(BaseFurniture):
@@ -10,12 +10,12 @@ class Sofa(BaseFurniture):
 
         self.sleeping_pos = []
         self.sleeping_target = []
-        self.sitting_pos = []
+
         self.sitting_target = []
-        self.set_sitting_position()
         self.num_seats = 2
         self.occupants = 0
 
+        self.sitting_pos = np.array([[width/3, height/2], [width * 2/3, height/2]])
         self.arm_rest_left_origin = np.array([0.0, 0.0])
         self.arm_rest_left_opposite = np.array([width * 0.1, height * 1.05])
         self.arm_rest_right_origin = np.array([width * 0.9, 0.])
@@ -28,28 +28,16 @@ class Sofa(BaseFurniture):
         self.points.extend([self.arm_rest_left_origin, self.arm_rest_left_opposite])
         self.points.extend([self.arm_rest_right_origin, self.arm_rest_right_opposite])
         self.points.extend([self.back_rest_origin, self.back_rest_opposite])
+        self.points.extend(self.sitting_pos)
 
     def get_sitting_position(self):
-        if not self.sitting_pos:
-            return self.sitting_pos
-
         return self.origin + self.sitting_pos
 
     def get_sitting_target(self):
         if not self.sitting_target:
             return self.sitting_target
 
-        return self.origin + self.sitting_target
-
-    def set_sitting_position(self):
-        rot = np.radians(self.rotation)
-
-        self.sitting_pos = [[i * np.cos(rot) * self.width / 4 - np.sin(rot) * self.height / 1.5,
-                             i * np.sin(rot) * self.width / 4 + np.cos(rot) * self.height / 1.5] for i in
-                            range(1, 4, 2)]
-        self.sitting_target = [[i * np.cos(rot) * self.width / 4 - np.sin(rot) * self.height,
-                                i * np.sin(rot) * self.width / 4 + np.cos(rot) * self.height] for i in
-                               range(1, 4, 2)]
+        return self.sitting_target
 
     def get_sleeping_position(self):
         return self.origin + self.sleeping_pos
@@ -95,12 +83,12 @@ class Armchair(BaseFurniture):
     def __init__(self, rotation=0, origin=None, width=1.2, height=1, scale=1):
         super().__init__(height, width, rotation, scale)
         self.origin = origin
-        self.sitting_pos = []
+
         self.sitting_target = []
-        self.set_sitting_position()
         self.num_seats = 1
         self.occupants = 0
 
+        self.sitting_pos = np.array([[width/2, height/2]])
         self.arm_rest_left_origin = np.array([0.0, 0.0])
         self.arm_rest_left_opposite = np.array([width * 0.15, height * 1.05])
         self.arm_rest_right_origin = np.array([width * 0.85, 0.])
@@ -113,19 +101,13 @@ class Armchair(BaseFurniture):
         self.points.extend([self.arm_rest_left_origin, self.arm_rest_left_opposite])
         self.points.extend([self.arm_rest_right_origin, self.arm_rest_right_opposite])
         self.points.extend([self.back_rest_origin, self.back_rest_opposite])
-
-    def set_sitting_position(self):
-        rot = np.radians(self.rotation)
-        self.sitting_pos = np.cos(rot) * self.width / 2 - np.sin(rot) * self.height / 1.5, \
-                           np.sin(rot) * self.width / 2 + np.cos(rot) * self.height / 1.5
-        self.sitting_target = np.cos(rot) * self.width / 2 - np.sin(rot) * self.height, \
-                              np.sin(rot) * self.width / 2 + np.cos(rot) * self.height
+        self.points.extend(self.sitting_pos)
 
     def get_sitting_position(self):
-        return [self.origin + self.sitting_pos]
+        return self.origin + self.sitting_pos
 
     def get_sitting_target(self):
-        return [self.origin + self.sitting_target]
+        return self.origin + self.sitting_target
 
     def draw(self, ax, bbox=True, origin=(0, 0)):
         abs_origin = self.origin + origin
