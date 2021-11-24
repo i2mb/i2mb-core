@@ -24,6 +24,9 @@ class Sleep(ActivityPrimitive):
 
         locations = set(self.population.location[ids].ravel())
         for loc in locations:
+            if not hasattr(loc, "put_to_bed"):
+                continue
+
             ids_mask = self.population.location[ids] == loc
             idx = self.population.index[ids]
             loc.put_to_bed(idx[ids_mask])
@@ -90,6 +93,7 @@ class Work(ActivityPrimitive):
 
         # Let the location determine the motion status
         self.stationary = None
+
 
 class Eat(ActivityPrimitive):
     pass
