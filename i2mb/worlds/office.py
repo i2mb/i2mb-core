@@ -74,8 +74,12 @@ class Office(BaseRoom):
             self.population.position[choose_idx] = self.available_seats[choose_seats]
 
         if required_seats < len(idx):
-            choose_idx = np.where(~bool_idx)[0][:required_seats]
-            self.population.position[choose_idx] = np.random.random((len(idx) - required_seats, 2)) * self.dims
+            bool_idx = self.population.find_indexes(idx[required_seats:])
+            required_seats = len(idx) - required_seats
+            choose_idx = np.where(bool_idx)[0][:required_seats]
+            self.population.position[choose_idx] = np.random.random((required_seats, 2)) * self.dims
+            if hasattr(self.population, "motion_mask"):
+                self.population.motion_mask[bool_idx] = True
 
     def raise_agents(self, idx):
         assigned_seats = (self.seat_assignment.reshape(-1, 1) == idx).any(axis=1)

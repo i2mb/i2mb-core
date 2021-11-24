@@ -41,7 +41,7 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
         if self.orientation == 1:
             self.seat_positions = self.seat_positions.dot([[0, 1], [-1, 0]]) + [self.dims[0], 0]
 
-    def _draw_world(self, ax: Axes, bbox=False, origin=(0., 0.)):
+    def _draw_world(self, ax: Axes, bbox=False, origin=(0., 0.), **kwargs):
         img = mpimage.imread(f"{_assets_dir}/CitaroK.png")
         extent = np.array([[0, self.dims[0]], [0, self.dims[1]]]) + self.origin.reshape((2, 1))
         if self.orientation == 1:
@@ -84,6 +84,9 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[bool_idx] = True
+
+        if hasattr(self.population, "reset_location_activities"):
+            self.population.reset_location_activities[bool_idx] = True
 
         for ix in idx:
             seat = self.seat_assignments.get(ix)

@@ -85,8 +85,11 @@ class Sleep(ActivityPrimitive):
 
 
 class Work(ActivityPrimitive):
-    pass
+    def __init__(self, population):
+        super().__init__(population)
 
+        # Let the location determine the motion status
+        self.stationary = None
 
 class Eat(ActivityPrimitive):
     pass

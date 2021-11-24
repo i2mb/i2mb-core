@@ -45,6 +45,7 @@ class Hospital(CompositeWorld):
             self.available_beds.append(bed)
             del self.bed_assignment[ix]
 
+        super().exit_world(idx, global_population)
         return
 
     def step(self, t):

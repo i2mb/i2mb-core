@@ -129,13 +129,14 @@ class ActivityPrimitive:
         if device_selector.any():
             self.population.position[device_selector] = self.device[device_selector, :]
 
-        if self.stationary:
+        # Only change motion mask when made explicit.
+        if self.stationary is True:
             self.population.motion_mask[ids] = False
 
     def stop_activity(self, t, stop_selector, descriptor_id):
         self.location[stop_selector] = None
         self.device[stop_selector, :] = np.nan
-        if self.stationary and hasattr(self.population, "motion_mask"):
+        if self.stationary is False and hasattr(self.population, "motion_mask"):
             self.population.motion_mask[stop_selector] = True
 
         if self.stationary and hasattr(self.population, "location"):
@@ -158,7 +159,7 @@ class ActivityNone(ActivityPrimitive):
 
     def __init__(self, population):
         super().__init__(population)
-        self.stationary = False
+        self.stationary = None
         # It usually gets added automatically so lets make sure it is the first one.
         self.id = 0
 

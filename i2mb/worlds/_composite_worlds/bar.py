@@ -137,6 +137,8 @@ class Bar(CompositeWorld, PublicSpace):
         if hasattr(self.population, "motion_mask"):
             global_population.motion_mask[idx] = True
 
+        super().exit_world(idx, global_population)
+
         for ix in idx:
             table = self.table_assignment[ix]
             table.occupants -= 1
