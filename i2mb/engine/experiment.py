@@ -52,7 +52,7 @@ class Experiment:
             yield frame
 
     def run_sim_engine(self):
-        np.random.seed(0)
+        np.random.seed()
         if self.save_files and not self.overwrite_files and self.all_files_exist():
             print(f"Run {self.run_id} skipped. Files exist.")
             return
