@@ -5,6 +5,7 @@ import numpy as np
 from i2mb.engine.agents import AgentList
 from i2mb.pathogen import UserStates
 from i2mb.pathogen.base_pathogen import Pathogen, SymptomLevels
+from i2mb.utils import global_time
 from i2mb.utils.spatial_utils import contacts_within_radius
 
 
@@ -334,6 +335,7 @@ class RegionVirusDynamicExposureBaseOnViralLoad(RegionVirusDynamicExposure):
         n = len(self.population)
         self.clearance_duration[:] = self.clearance_duration_distribution(n).reshape(-1, 1)
         self.proliferation_duration[:] = self.proliferation_duration_distribution(n).reshape(-1, 1)
+        self.proliferation_duration[:] += 1 * global_time.time_scalar
         self.max_viral_load[:] = self.max_viral_load_distribution(n).reshape(-1, 1)
 
         self.incubation_duration[:] = self.symptom_onset_estimator(self.proliferation_duration,
