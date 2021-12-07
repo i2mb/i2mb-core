@@ -94,28 +94,40 @@ class RegionVirusDynamicExposure(Pathogen):
         t_infection = t
         if skip_incubation:
             state = UserStates.infectious
-            t_infection = t - incubation_period
+            t_infection = t - incubation_period.ravel()
 
         self.__infect_particles(infected, num_p0s, severity, state, t_infection)
 
     def __get_severity_levels(self, asymptomatic, num_p0s, symptoms_level):
-        symptom_distro = np.array(self.symptom_distribution.copy())
-        a_p = symptom_distro[SymptomLevels.no_symptoms]
-        distribute_a_p = len(symptom_distro) - 1
-        symptom_distro[1:] += a_p / distribute_a_p
-        symptom_distro[SymptomLevels.no_symptoms] = 0
-        severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=symptom_distro)
-        severity[:asymptomatic] = SymptomLevels.no_symptoms
-
         if symptoms_level is not None:
-            severity[:] = symptoms_level
+            return np.full(num_p0s, symptoms_level, dtype=int)
+
+        if asymptomatic is None:
+            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=self.symptom_distribution)
+
+        else:
+            symptom_distro = np.array(self.symptom_distribution.copy())
+            a_p = symptom_distro[SymptomLevels.no_symptoms]
+            distribute_a_p = len(symptom_distro) - 1
+            symptom_distro[1:] += a_p / distribute_a_p
+            symptom_distro[SymptomLevels.no_symptoms] = 0
+            severity = np.random.choice(SymptomLevels.full_symptom_levels(), num_p0s, p=symptom_distro)
+            severity[:asymptomatic] = SymptomLevels.no_symptoms
 
         return severity
 
     def __get_asymptomatic(self, asymptomatic, num_p0s):
-        """Returns the number of asymptomatic to insert in this call."""
+        """Returns the number of asymptomatic to insert in this call. This function returns None when asymptomatic
+        agents are desired but the actual number is drawn from the specified distribution. See '__get_severity_levels(
+        ...)'"""
         if asymptomatic is None:
-            asymptomatic = True
+            return None
+
+        if type(asymptomatic) is bool:
+            if asymptomatic:
+                return None
+            else:
+                return 0
 
         if isinstance(asymptomatic, float):
             if 0 <= asymptomatic <= 1:
@@ -123,12 +135,6 @@ class RegionVirusDynamicExposure(Pathogen):
             else:
                 # We understand numbers greater than one as the number of asymptomatic agents.
                 asymptomatic = int(asymptomatic)
-
-        elif type(asymptomatic) == bool:
-            if not asymptomatic:
-                asymptomatic = 0
-            else:
-                asymptomatic = int(self.symptom_distribution[SymptomLevels.no_symptoms] * num_p0s)
 
         elif type(asymptomatic) != int:
             raise RuntimeError(f"Type {type(asymptomatic)} of asymptomatic not supported")
