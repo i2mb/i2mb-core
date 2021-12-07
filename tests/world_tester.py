@@ -24,7 +24,7 @@ from i2mb.engine.agents import AgentList
 from i2mb.engine.core import Engine
 from i2mb.motion.random_motion import RandomMotion
 from i2mb.utils import global_time
-from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom, Restaurant
+from i2mb.worlds import CompositeWorld, Apartment, BaseRoom, LivingRoom, Restaurant, Corridor
 from i2mb.worlds._area import Area
 from i2mb.worlds.office import Office
 
@@ -150,13 +150,28 @@ class WorldBuilderTest(TestCase):
         assert (pop1.index == w.population.index[:5]).all()
         assert (pop2.index == w.population.index[5:]).all()
 
+        baseline = {Apartment: np.ones(len(w.population)), Corridor: np.ones(len(w.population))}
+        self.assertDictWithArrays(baseline, w.universe.visit_counter)
+
+    def assertDictWithArrays(self, baseline, dict_):
+        self.assertSequenceEqual(baseline.keys(), dict_.keys())
+        for k, v in baseline.items():
+            self.assertListEqual(list(v), list(dict_[k]))
+
     def test_apartment_exit(self):
         w = WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), no_gui=True)
         pop1, pop2, pop3 = [ap.population for ap in w.worlds]
 
+        idx = pop1.index[-1]
         w.universe.move_agents(pop1.index[-1], w.worlds[2])
         assert (w.worlds[0].population.index == w.population.index[:4]).all()
         assert ~w.population.at_home.all()
+
+        baseline = {Apartment: np.ones(len(w.population)),
+                    Corridor: np.ones(len(w.population)),
+                    type(w.worlds[2]): np.zeros(len(w.population))}
+        baseline[type(w.worlds[2])][idx] += 1
+        self.assertDictWithArrays(baseline, w.universe.visit_counter)
 
     def test_changing_rooms(self):
         return

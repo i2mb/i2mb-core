@@ -35,6 +35,7 @@ class CompositeWorld(World):
         self.local_activities = []
         self.available_activities = []
         self.activity_types = set()
+        self.visit_counter = {}
 
         # Define the logical levels an agent needs to traverse in order to exit a building
         self.entry_route = np.array([self])
@@ -136,7 +137,10 @@ class CompositeWorld(World):
     def enter_region(self, idx, region, departed_from_regions):
         idx_ = idx
         region.prepare_entrance(idx, self.population)
-        region = region.get_entrance_sub_region()
+        entrance_region = region.get_entrance_sub_region()
+        self.update_visit_counter(idx, entrance_region, region)
+
+        region = entrance_region
         if region.population is not None:
             old_idx = region.population.index
             idx = np.union1d(old_idx, idx)
@@ -150,6 +154,19 @@ class CompositeWorld(World):
         self.population.regions.add(region)
         if self not in self.location and self in self.population.regions:
             self.population.regions.remove(self)
+
+    def update_visit_counter(self, idx, entrance_region, region):
+        if type(region) not in self.visit_counter:
+            # avoids allocation of default value when the key already exists.
+            self.visit_counter[type(region)] = np.zeros(len(self.population), dtype=int)
+
+        if type(entrance_region) not in self.visit_counter:
+            # avoids allocation of default value when the key already exists.
+            self.visit_counter[type(entrance_region)] = np.zeros(len(self.population), dtype=int)
+
+        self.visit_counter[type(region)][idx] += 1
+        if entrance_region is not region:
+            self.visit_counter[type(entrance_region)][idx] += 1
 
     def depart_current_region(self, idx, destination):
         depart = set(self.location[idx]) - {self}
