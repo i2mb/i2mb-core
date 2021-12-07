@@ -15,25 +15,26 @@ from i2mb.worlds.furniture.door import Door, DOOR_WIDTH
 
 
 class BaseRoom(CompositeWorld):
-    def __init__(self, dims, entry=0.5, scale=1, **kwargs):
+    def __init__(self, dims, entry=0.5, scale=1, door_scale=1, **kwargs):
         self.furniture = []
         self.furniture_origins = []
         self.furniture_upper = []
-
         super().__init__(dims=dims, scale=scale, **kwargs)
-        self.register_sub_areas(self.furniture)
-
         width, height = self.dims
+        if type(entry) is float:
+            # create door
+            entry_offset = entry * height - DOOR_WIDTH * scale / 2
+            self.entry = np.array([width - DOOR_WIDTH * scale, entry_offset])
+        else:
+            self.entry = entry
 
-        # create door
-        entry_offset = entry * height - DOOR_WIDTH * scale / 2
-        self.entry = np.array([width - DOOR_WIDTH * scale, entry_offset])
+        self.register_sub_areas(self.furniture)
 
         # define entry point where you leave and enter
         self.entry_point = self.entry.copy() + (0.5*DOOR_WIDTH, 0.5*DOOR_WIDTH)
         self.points.append(self.entry_point)
 
-        self.door = Door(0, self.entry, scale=scale)
+        self.door = Door(0, self.entry, scale=door_scale)
         self.add_furniture([self.door])
 
     def add_furniture(self, new_furniture):
