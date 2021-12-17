@@ -1,7 +1,4 @@
-import tabula
-import networkx as nx
 import matplotlib.pyplot as plt
-import pylab
 import numpy as np
 from matplotlib.patches import Rectangle, Circle, PathPatch
 from matplotlib.path import Path

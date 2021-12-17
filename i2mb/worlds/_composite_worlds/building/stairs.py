@@ -39,7 +39,7 @@ class Stairs(CompositeWorld):
         if idx is None:
             return [self.entry_point] * n
         entries, rooms = np.array(self.__room_entries), np.array(self.__adjacent_rooms)
-        indices = npi.indices(rooms, locations)
+        indices = npi.indices(rooms, self.population.location)
         return entries[indices]
 
     def exit_world(self, idx, global_population):
