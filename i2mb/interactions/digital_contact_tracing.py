@@ -1,10 +1,9 @@
 import numpy as np
 
-from i2mb.utils.spatial_utils import distance, contacts_within_radius
 from i2mb.utils import cache_manager
+from i2mb.utils.spatial_utils import distance, contacts_within_radius
 from .base_interaction import Interaction
 from .contact_list import ContactList
-from .contact_matrix import ContactMatrix
 
 
 class ContactTracing(Interaction):
@@ -33,8 +32,9 @@ class ContactTracing(Interaction):
 
     def __init__(self, radius, population, track_time=None, duration=1,
                  coverage=1., false_positives=0, false_negatives=0, fp_radius=.02,
-                 dropout=0.):
+                 dropout=0., app_activation_time=0):
 
+        self.app_activation_time = app_activation_time
         self.dropout = dropout
         self.fp_radius = fp_radius ** 2
         self.false_negatives = false_negatives
@@ -86,6 +86,9 @@ class ContactTracing(Interaction):
          :param t: Simulation time, i.e., number of steps so far.
          :return: Returns the population contact list at time t
         """
+        if t < self.app_activation_time:
+            return
+
         distances = self.distances()
         fp_radius = self.radius * (1 + self.fp_radius)
 
