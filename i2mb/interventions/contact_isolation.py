@@ -1,6 +1,6 @@
 import numpy as np
 
-from i2mb.pathogen.base_pathogen import UserStates, SymptomLevels
+from i2mb.pathogen.base_pathogen import UserStates
 from .base_intervention import Intervention
 
 
@@ -58,7 +58,7 @@ class ContactIsolationIntervention(Intervention):
 
     def step(self, t):
         # release agents
-        self.release_particles(t)
+        self.release_agents(t)
 
         self.hh_contacted = 0
 
@@ -97,7 +97,7 @@ class ContactIsolationIntervention(Intervention):
             for r in set(regions[new_isolated].ravel()):
                 self.world.move_agents((regions == r) & new_isolated, r)
 
-    def release_particles(self, t):
+    def release_agents(self, t):
         recovered_ids = self.leave_request.ravel()
         if recovered_ids.any():
             self.population.isolated[recovered_ids, 0] = False
