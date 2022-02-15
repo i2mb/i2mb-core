@@ -19,6 +19,7 @@ class GetTested(Model):
         self.code = -1
 
         self.test_result_current = np.zeros((len(population), 1), dtype=bool)
+        self.time_of_last_test = np.zeros((len(population), 1), dtype=bool) - 1
 
         self.self_isolated = 0
 
@@ -29,57 +30,21 @@ class GetTested(Model):
     def step(self, t):
         # reset counter
         self.self_isolated = 0
-
-        # Collect results
-        test_results = self.population.results_available.ravel()  # this is not a copy
-        if test_results.any():
-            self.test_result_current[test_results] = True
-
-            # Check if we have to, and want to, report the positive test to the health authorities
-            share_results = np.random.random((len(self.population), 1)) <= self.share_test_result
-            report_tests = test_results & ~self.population.isolated.ravel() & share_results.ravel()
-            if hasattr(self.population, "positive_test_report"):
-                self.population.positive_test_report[report_tests] = True
-
-            if hasattr(self.population, "dct_positive_test_report"):
-                self.population.dct_positive_test_report[report_tests] = True
-
-            if hasattr(self.population, "fnf_positive_test_report"):
-                self.population.fnf_positive_test_report[report_tests] = True
-
-            self.population.results_available[test_results] = False  # modifying this modifies testresults
-
-        # Test results become invalid once agent becomes immune.
-        alive = (self.population.state != UserStates.deceased)
-        recovered = (((self.population.state == UserStates.immune) | ~alive) & self.test_result_current &
-                     self.population.test_result)
-        if recovered.any():
-            self.test_result_current[recovered.ravel()] = False
-
-        active = self.population.state == UserStates.infectious
-        active &= self.population.symptom_level != SymptomLevels.no_symptoms
-        candidates = (t - (self.population.time_of_infection + self.population.incubation_duration)) >= self.delay
-        candidates &= active & ~self.population.test_in_process & ~self.population.test_result
-        if candidates.any():
-            candidates = candidates.ravel()
-            self.population.test_request[candidates] = True
-            self.test_result_current[candidates] = False
-
-        # Request isolation of agents that tested positive
-        candidates = self.population.test_result & self.test_result_current & ~self.population.isolated
-        if candidates.any():
-            self.self_isolated = candidates.sum()
-            self.population.isolation_request[candidates.ravel()] = True
-            self.population.isolated_by[candidates.ravel()] = self.code
+        self.collect_results()
+        self.invalidate_test_results()
+        self.request_test_for_symptomatic_agents(t)
+        self.request_agents_with_positive_test_to_isolate()
 
         if not self.population.isolated.any():
             return
 
+        self.determine_who_can_leave_isolation(t)
+
+    def determine_who_can_leave_isolation(self, t):
         # Determine who can leave isolation
         leave = self.population.state == UserStates.immune
         leave |= ((self.population.state == UserStates.exposed) |
                   (self.population.state == UserStates.susceptible))
-
         if self.test_to_leave:
             # update test information
             if self.test_household:
@@ -104,5 +69,53 @@ class GetTested(Model):
         if leave.any():
             self.population.leave_request[leave.ravel()] = True
 
-            # Test results become invalid once agent leave isolation.
+            # Test results become invalid once agents leave isolation.
             self.test_result_current[leave.ravel()] = False
+
+    def request_agents_with_positive_test_to_isolate(self):
+        # Request isolation of agents that tested positive
+        candidates = self.population.test_result & self.test_result_current & ~self.population.isolated
+        if candidates.any():
+            self.self_isolated = candidates.sum()
+            self.population.isolation_request[candidates.ravel()] = True
+            self.population.isolated_by[candidates.ravel()] = self.code
+
+    def invalidate_test_results(self):
+        # Test results become invalid once agent becomes immune.
+        alive = (self.population.state != UserStates.deceased)
+        recovered = (((self.population.state == UserStates.immune) | ~alive) & self.test_result_current &
+                     self.population.test_result)
+        if recovered.any():
+            self.test_result_current[recovered.ravel()] = False
+
+    def request_test_for_symptomatic_agents(self, t):
+        active = self.population.state == UserStates.infectious
+        active &= self.population.symptom_level != SymptomLevels.no_symptoms
+        candidates = (t - (self.population.time_of_infection + self.population.incubation_duration)) >= self.delay
+        candidates &= active & ~self.population.test_in_process & ~self.population.test_result
+        self.request_test(candidates)
+
+    def request_test(self, petitioners):
+        if petitioners.any():
+            petitioners = petitioners.ravel()
+            self.population.test_request[petitioners] = True
+            self.test_result_current[petitioners] = False
+
+    def collect_results(self):
+        test_results = self.population.results_available.ravel()  # this is not a copy
+        if test_results.any():
+            self.test_result_current[test_results] = True
+
+            # Check if we have to, and want to, report the positive test to the health authorities
+            share_results = np.random.random((len(self.population), 1)) <= self.share_test_result
+            report_tests = test_results & ~self.population.isolated.ravel() & share_results.ravel()
+            if hasattr(self.population, "positive_test_report"):
+                self.population.positive_test_report[report_tests] = True
+
+            if hasattr(self.population, "dct_positive_test_report"):
+                self.population.dct_positive_test_report[report_tests] = True
+
+            if hasattr(self.population, "fnf_positive_test_report"):
+                self.population.fnf_positive_test_report[report_tests] = True
+
+            self.population.results_available[test_results] = False  # modifying this modifies test results
