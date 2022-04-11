@@ -1,8 +1,6 @@
 class SimulationTime:
     def __init__(self, tick_hour=8):
         self.ticks_hour = tick_hour
-        self.ticks_week = 7 * self.time_scalar
-        self.ticks_month = 30 * self.time_scalar
 
     @property
     def time_scalar(self):
@@ -11,6 +9,22 @@ class SimulationTime:
     @time_scalar.setter
     def time_scalar(self, v):
         self.ticks_hour = v / 24
+
+    @property
+    def ticks_day(self):
+        return 24 * self.ticks_hour
+
+    @ticks_day.setter
+    def ticks_day(self, v):
+        self.ticks_hour = v / 24
+
+    @property
+    def ticks_week(self):
+        return 7 * self.ticks_day
+
+    @property
+    def ticks_month(self):
+        return 30 * self.ticks_day
 
     def time(self, v):
         """Returns the number of ticks elapsed during the current day"""
