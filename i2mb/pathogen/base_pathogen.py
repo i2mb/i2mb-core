@@ -57,8 +57,8 @@ class Pathogen(Model):
         self.wave_done = True
 
         shape = (len(population), 1)
-        self.states = np.ones(shape) * UserStates.susceptible
-        self.symptom_levels = np.ones(shape) * SymptomLevels.not_sick
+        self.states = self.population.state
+        self.symptom_levels = self.population.symptom_level
         self.infectious_duration_pso = np.zeros(shape)
         self.incubation_duration = np.zeros(shape)
         self.illness_duration = np.zeros(shape)
@@ -68,8 +68,6 @@ class Pathogen(Model):
         self.particle_type = np.zeros(shape)
         self.location_contracted = np.zeros(shape, dtype=object)
 
-        population.add_property("state", self.states)
-        population.add_property("symptom_level", self.symptom_levels)
         population.add_property("infectious_duration_pso", self.infectious_duration_pso)
         population.add_property("incubation_duration", self.incubation_duration)
         population.add_property("illness_duration", self.illness_duration)

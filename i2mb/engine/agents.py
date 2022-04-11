@@ -1,5 +1,7 @@
 import numpy as np
 
+from i2mb.pathogen import UserStates, SymptomLevels
+
 
 def vectorized(fn):
     AgentList.particle_properties.append(fn.__name__)
@@ -95,6 +97,11 @@ class AgentList:
         self.__updated = True
         self.__update_time = None
         self.__current_time = True
+
+        # Agent Properties
+        shape = (agents, 1)
+        self.state = np.ones(shape) * UserStates.susceptible
+        self.symptom_level = np.ones(shape) * SymptomLevels.not_sick
 
     def set_time(self, t):
         self.__current_time = t

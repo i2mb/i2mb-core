@@ -87,9 +87,8 @@ class NightOut(Motion):
         if hasattr(self.population, "isolated"):
             move_mask &= ~self.population.isolated.ravel()
 
-        if hasattr(self.population, "state"):
-            deceased = self.population.state == UserStates.deceased
-            move_mask &= ~deceased.ravel()
+        deceased = self.population.state == UserStates.deceased
+        move_mask &= ~deceased.ravel()
 
         a_population = sum(move_mask)
         max_capacity = self.max_capacity

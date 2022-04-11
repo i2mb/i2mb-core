@@ -243,9 +243,8 @@ class ScheduleRoutines(Motion):
         if hasattr(self.population, "isolated"):
             move_mask &= ~self.population.isolated
 
-        if hasattr(self.population, "state"):
-            deceased = self.population.state == UserStates.deceased
-            move_mask &= ~deceased
+        deceased = self.population.state == UserStates.deceased
+        move_mask &= ~deceased
 
         go_home = move_mask & self.auto_return & end_triggers.reshape((-1, 1))
         self.event_location[go_home.ravel()] = self.return_location[go_home.ravel()]
