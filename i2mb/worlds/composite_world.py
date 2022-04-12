@@ -17,13 +17,16 @@
 import numpy as np
 from matplotlib.patches import Rectangle
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..engine.agents import AgentList
+
 from .world_base import World
-from ..engine.agents import AgentList
 from ..utils import cache_manager
 
 
 class CompositeWorld(World):
-    def __init__(self, dims=None, population: AgentList = None, regions=None, origin=None, map_file=None,
+    def __init__(self, dims=None, population: 'AgentList' = None, regions=None, origin=None, map_file=None,
                  containment=False, waiting_room=False, rotation=0, scale=1):
         self.regions = []
         super().__init__(dims, origin=origin, rotation=rotation, scale=scale, subareas=self.regions)
