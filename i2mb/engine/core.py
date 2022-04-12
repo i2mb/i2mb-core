@@ -55,4 +55,4 @@ class Engine:
 
     def post_init_modules(self):
         for m in self.models:
-            m.post_init()
+            m.post_init(base_file_name=self.base_file_name)
