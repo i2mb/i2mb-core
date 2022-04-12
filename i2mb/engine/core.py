@@ -2,7 +2,8 @@ from i2mb.utils import cache_manager
 
 
 class Engine:
-    def __init__(self, models, populations=None, num_steps=None, select=None, debug=False):
+    def __init__(self, models, populations=None, base_file_name="./", num_steps=None, select=None, debug=False):
+        self.base_file_name = base_file_name
         self.debug = debug
         if debug:
             import time
@@ -30,17 +31,17 @@ class Engine:
             for p in self.populations:
                 p.set_current_time(self.time)
 
-            res = []
             for m in self.models:
                 if self.debug:
                     t0 = self.current_time()
 
-                res.append(m.step(self.time))
+                m.step(self.time)
+                m.save_to_file(self.time)
                 if self.debug:
                     tf = self.current_time()
                     self.debug_timer.setdefault(f"{m}", []).append((tf - t0) * 1e-9)
 
-            yield [r for r in res[self.model_selector]]
+            yield None
 
             self.time += 1
             cache_manager.time = self.time

@@ -40,7 +40,7 @@ class FriendsNFamilyContactTracing(Interaction):
         self.contact_matrix = Counter()
         self.last_update = {}
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
         if hasattr(self.population, "register"):
             self.code = self.population.register("FNF")
 
@@ -51,9 +51,10 @@ class FriendsNFamilyContactTracing(Interaction):
         contacts = contacts_within_radius(self.population, self.radius)
         for region_contacts in contacts:
             for r in region_contacts:
+                contact_pair = tuple(r)
                 if r in self.network.edges:
-                    self.contact_matrix.update([tuple(r)])
-                    self.last_update[tuple(r)] = t
+                    self.contact_matrix.update([contact_pair])
+                    self.last_update[contact_pair] = t
 
         # Enforce Track time
         for k, v in self.last_update.items():

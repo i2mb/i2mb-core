@@ -63,7 +63,7 @@ class ActivityManager(Model):
         if self.world is not None:
             self.register_available_locations()
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
         self.generate_activity_ranking()
 
     def step(self, t):
