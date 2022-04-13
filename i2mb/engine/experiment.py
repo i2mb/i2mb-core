@@ -34,6 +34,7 @@ class Experiment:
         self.overwrite_files = self.config.get("overwrite_files", False)
         self.save_files = self.config.get("save_files", False)
         self.sim_engine = None
+        self.generate_time_series = config.get("generate_time_series", False)
 
         # Structures that hold data updated every frame
         self.time_series_stats = []
@@ -116,8 +117,9 @@ class Experiment:
         key = f"end_values"
         df.to_hdf(f"{self.get_filename()}.hdf", key=key)
 
-        df = pd.DataFrame(self.time_series_stats)
-        df.to_hdf(f"{self.get_filename()}_results.hdf", key="results")
+        if self.generate_time_series:
+            df = pd.DataFrame(self.time_series_stats)
+            df.to_hdf(f"{self.get_filename()}_results.hdf", key="results")
 
         np.savez(f"{self.get_filename()}.npz", **self.agent_history)
         # TODO: Output as csv (command line option)
