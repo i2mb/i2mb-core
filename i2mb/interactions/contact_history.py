@@ -48,8 +48,8 @@ class ContactHistory(Interaction):
         contacts_not_seen = set(self.track_history) - self.track_history_seen_contacts
         for contact in contacts_not_seen:
 
-            line = *contact, t, *[self.track_history[contact][k] for k in ["type", "contact_started", "duration",
-                                                                           "location"]]
+            line = *contact, *[self.track_history[contact][k]
+                               for k in ["type", "contact_started", "duration", "location"]]
             line = [f"{str(l)}" for l in line]
 
             self.file.write(", ".join(line) + "\n")
