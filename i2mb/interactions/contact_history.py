@@ -56,4 +56,5 @@ class ContactHistory(Interaction):
             del self.track_history[contact]
 
     def __del__(self):
-        self.file.close()
+        if self.file is not None:
+            self.file.close()

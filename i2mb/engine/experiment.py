@@ -42,6 +42,9 @@ class Experiment:
         self.agent_history = {}
         self.final_agent_stats = {}
 
+        if self.save_files:
+            self.create_directories()
+
     def frame_generator(self):
         for frame, _ in enumerate(self.sim_engine.engine.step()):
             # Stopping criteria
@@ -108,7 +111,6 @@ class Experiment:
         return os.path.join(dir_name, base_name)
 
     def save_data(self):
-        self.create_directories()
         self.write_meta_data()
         df = pd.DataFrame(self.final_agent_stats)
         key = f"end_values"

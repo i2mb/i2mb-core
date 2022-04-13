@@ -55,7 +55,7 @@ class Bathroom(BaseRoom):
         self.local_activities.extend(self.activities)
         self.descriptor_idx = {}
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
         self.descriptor_idx = {d.activity_id: d for d in self.activities}
 
     def start_activity(self, idx, activity_id):

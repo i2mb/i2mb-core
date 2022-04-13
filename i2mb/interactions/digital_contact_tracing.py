@@ -69,7 +69,8 @@ class ContactTracing(Interaction):
         # People contacted by digital contact tracing
         self.dct_contacted = 0
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
+        super().post_init(base_file_name)
         if hasattr(self.population, "register"):
             self.code = self.population.register("DCT")
 

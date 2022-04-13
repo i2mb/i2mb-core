@@ -36,7 +36,8 @@ class GetTested(Model):
         elif delay_test is not None:
             self.delay_test = delay_test
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
+        super(GetTested, self).post_init(base_file_name)
         if hasattr(self.population, "register"):
             self.code = self.population.register("Self isolation")
 

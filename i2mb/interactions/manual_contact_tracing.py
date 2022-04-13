@@ -71,7 +71,8 @@ class ManualContactTracing(Interaction):
 
         self.code = -1
 
-    def post_init(self):
+    def post_init(self, base_file_name=None):
+        super(ManualContactTracing, self).post_init(base_file_name)
         if hasattr(self.population, "register"):
             self.code = self.population.register("MCT")
 
