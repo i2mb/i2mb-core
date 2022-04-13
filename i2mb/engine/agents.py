@@ -80,7 +80,7 @@ class AgentListView:
 
 
 class AgentList:
-    particle_properties = []
+    particle_properties = ["state", "symptom_level"]
     list_properties = []
 
     def __init__(self, agents=0):
