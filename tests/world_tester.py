@@ -33,7 +33,7 @@ global_time.ticks_scalar = 60 / 5 * 24
 
 class WorldBuilder:
     def __init__(self, world_cls=CompositeWorld, world_kwargs=None, rotation=0, sim_duration=1000,
-                 update_callback=None, no_gui=False, population=None, use_office=False):
+                 update_callback=None, no_gui=False, no_animation=False, population=None, use_office=False):
         if update_callback is None:
             update_callback = self.__update_callback
 
@@ -72,7 +72,7 @@ class WorldBuilder:
 
         self.assign_agents_to_worlds()
         if not no_gui:
-            self.create_animation_engine()
+            self.create_animation_engine(no_animation)
 
     @staticmethod
     def __update_callback(self, frame):
@@ -94,7 +94,7 @@ class WorldBuilder:
             start += 5
             end += 5
 
-    def create_animation_engine(self):
+    def create_animation_engine(self, no_animation=False):
         self.fig, self.ax = plt.subplots(1)
 
         self.ax.set_aspect(1)
@@ -108,13 +108,14 @@ class WorldBuilder:
         self.ax.scatter(*np.array([[0, 0], [w, h], [-w, h], [-w, -h], [w, -h],
                                    [h, w], [-h, w], [-h, -w], [h, -w]]).T, s=16)
         self.fig.tight_layout()
-        self.ani = FuncAnimation(self.fig, self.update, frames=self.frame_generator,
-                                 # fargs=(,),
-                                 # init_func=init,
-                                 interval=0.5,
-                                 repeat=False,
-                                 blit=True
-                                 )
+        if not no_animation:
+            self.ani = FuncAnimation(self.fig, self.update, frames=self.frame_generator,
+                                     # fargs=(,),
+                                     # init_func=init,
+                                     interval=0.5,
+                                     repeat=False,
+                                     blit=True
+                                     )
 
     def draw_population(self, **kwargs):
         kwargs.setdefault("color", "b")
@@ -196,13 +197,14 @@ class WorldBuilderTest(TestCase):
 
     def test_office_build(self):
         for rot in [0, 90, 180, 270]:
-            WorldBuilder(world_cls=Office, world_kwargs=dict(width=(10,10)), rotation=rot)
+            WorldBuilder(world_cls=Office, world_kwargs=dict(width=(10, 10)), rotation=rot)
 
         plt.show(block=True)
 
     def test_appartment_office_office_build(self):
         for rot in [0, 90, 180, 270]:
-            WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), rotation=rot, use_office=True)
+            WorldBuilder(world_cls=Apartment, world_kwargs=dict(num_residents=6), rotation=rot, use_office=True,
+                         no_animation=True)
 
         plt.show(block=True)
 
@@ -211,4 +213,3 @@ class WorldBuilderTest(TestCase):
             WorldBuilder(world_cls=Restaurant, world_kwargs=dict(), rotation=rot)
 
         plt.show(block=True)
-
