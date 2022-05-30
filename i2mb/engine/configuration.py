@@ -52,5 +52,5 @@ class Configuration(dict):
     def load_config(self, config_file):
         self.config_file = config_file
         with open(config_file) as cfg_file:
-            code = cfg_file.read()
+            code = compile(cfg_file.read(), config_file, "exec")
             exec(code, {"config": self})

@@ -57,7 +57,7 @@ class Experiment:
 
     def run_sim_engine(self):
         np.random.seed()
-        if self.save_files and not self.overwrite_files and self.all_files_exist():
+        if self.skip_run():
             print(f"Run {self.run_id} skipped. Files exist.")
             return
 
@@ -75,16 +75,16 @@ class Experiment:
         print(f"Run {self.get_base_name()} finished.")
 
     def process_stop_criteria(self, frame):
-        raise RuntimeError("Experiment stop criteria needs to be implemented in child class.")
+        raise NotImplemented("Experiment stop criteria needs to be implemented in child class.")
 
     def collect_time_series_data(self, frame):
-        raise RuntimeError("collect_time_series_data needs to be implemented in child class.")
+        raise NotImplemented("collect_time_series_data needs to be implemented in child class.")
 
     def collect_aggregated_data(self):
-        raise RuntimeError("collect_aggregated_data needs to be implemented in child class.")
+        raise NotImplemented("collect_aggregated_data needs to be implemented in child class.")
 
     def process_trigger_events(self, frame):
-        raise RuntimeError("process_trigger_events needs to be implemented in child class.")
+        raise NotImplemented("process_trigger_events needs to be implemented in child class.")
 
     def display_start_msg(self):
         if self.config_name is None:
@@ -139,7 +139,10 @@ class Experiment:
         if (npz_file_exists or hdf_file_exists or results_hdf_file_exists) and self.overwrite_files:
             print("Some files were found for this run and they will be overwritten.")
 
-        return npz_file_exists and hdf_file_exists and results_hdf_file_exists
+        return npz_file_exists and hdf_file_exists
+
+    def skip_run(self):
+        return self.save_files and not self.overwrite_files and self.all_files_exist()
 
     def write_meta_data(self):
         meta_data_file_name = os.path.join(self.get_experiment_dir(), "meta_data")
