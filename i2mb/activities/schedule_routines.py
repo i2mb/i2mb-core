@@ -196,6 +196,8 @@ class ScheduleRoutines(Motion):
         else:
             self.schedules[:] = schedule
 
+        self.have_schedule = self.schedules != None  # noqa
+
         self.population.add_property("schedule", self.schedules)
         # self.location_types = np.unique([loc for s in self.schedules.ravel() for loc in s.get_locations()])
         # self.__init_locations__()
@@ -239,7 +241,7 @@ class ScheduleRoutines(Motion):
             return
 
         n = len(self.population)
-        move_mask = np.ones((n, 1), dtype=bool)
+        move_mask = np.ones((n, 1), dtype=bool) & self.have_schedule
         if hasattr(self.population, "isolated"):
             move_mask &= ~self.population.isolated
 
@@ -261,6 +263,9 @@ class ScheduleRoutines(Motion):
 
     def update_events(self, active_triggers, t):
         for id_, s in zip(self.population.index[active_triggers], self.schedules[active_triggers].ravel()):
+            if s is None:
+                continue
+
             event: Entry = s.get_next_event(t)
             self.trigger[id_] = event.trigger
             self.start_time[id_] = event.start_time
