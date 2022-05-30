@@ -1,8 +1,11 @@
 from collections import Counter
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from i2mb.engine.agents import AgentList
+if TYPE_CHECKING:
+    from i2mb.engine.agents import AgentList
+
 from i2mb.pathogen import UserStates
 from i2mb.pathogen.base_pathogen import Pathogen, SymptomLevels
 from i2mb.utils import global_time
@@ -24,7 +27,7 @@ class RegionVirusDynamicExposure(Pathogen):
         function(population, time)
     """
 
-    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: AgentList,
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: 'AgentList',
                  radius=5,
                  illness_duration_distribution=None,
                  infectious_duration_pso_distribution=None,
@@ -301,7 +304,7 @@ class RegionVirusDynamicExposure(Pathogen):
 
 
 class RegionVirusDynamicExposureBaseOnViralLoad(RegionVirusDynamicExposure):
-    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: AgentList,
+    def __init__(self, exposure_function, recovery_function, infectiousness_function, population: 'AgentList',
                  radius=5,
                  clearance_duration_distribution=None,
                  illness_duration_distribution=None,

@@ -10,13 +10,16 @@ from i2mb.worlds.world_base import PublicSpace
 
 
 class Bar(CompositeWorld, PublicSpace):
-    def __init__(self, bar_shape="L", corridor_width=0.3, **kwargs):
+    def __init__(self, bar_shape="L", corridor_width=0.3, num_tables=None, **kwargs):
         self.table_assignment = {}
         self.corridor_width = corridor_width
         self.bar_shape = bar_shape
         self.bar = BarTable(sits=12, shape=bar_shape, seats_main=6)
         self.occupied_stools = np.zeros(12, dtype=bool)
-        num_tables = 4
+
+        if num_tables is None:
+            num_tables = 4
+
         num_r_tables = 0
         if bar_shape == "U":
             num_r_tables = 1

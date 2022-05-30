@@ -13,7 +13,7 @@ class Bar(BaseTable):
         self.bar_width = bar_width
         self.shape = shape
         if shape not in ["L", "U", "|"]:
-            raise RuntimeError(f"Wrong shape given for the bar ('{shape}'), only 'L', 'U', '|' are allowed.")
+            raise RuntimeError(f"Wrong shape given for the bar ('{shape}'), only 'L', 'U', or '|' are allowed.")
 
         # Determine bar size
         sides = 1
