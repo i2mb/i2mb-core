@@ -307,8 +307,6 @@ class ScheduleRoutines(Motion):
             # Decide only at 00:05 if you are
             return
 
-        print("Selecting Stayers")
-
         self.follow_schedule_selection[:, :] = True
 
         ids = self.population.index[self.have_schedule.ravel()]
