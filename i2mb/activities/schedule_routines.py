@@ -184,14 +184,13 @@ class Schedule:
 
 class ScheduleRoutines(Motion):
     def __init__(self, world, population, schedule: [Schedule, Iterable], default="home",
+                 must_follow_schedule=1.,
                  ignore_schedule=None):
         super().__init__(world, population)
         n = len(population)
 
-        self.ignore_schedule = ignore_schedule
-        self.follow_schedule_selection = None
-        if ignore_schedule is not None:
-            self.follow_schedule_selection = np.ones((n, 1), dtype=bool)
+        self.__initialize_must_follow_schedule_selection(must_follow_schedule, n)
+        self.__initialize_ignore_schedule_selection(ignore_schedule, must_follow_schedule, n)
 
         self.default_location = getattr(self.population, default)
         self.schedules = np.empty((n, 1), dtype=object)
@@ -222,6 +221,23 @@ class ScheduleRoutines(Motion):
 
         self.update_events([True] * n, 0)
 
+    def __initialize_ignore_schedule_selection(self, ignore_schedule, must_follow_schedule, n):
+        self.ignore_schedule = ignore_schedule
+        self.decides_to_follow_schedule_selection = None
+        if ignore_schedule is None:
+            return
+
+        if 1 - must_follow_schedule < ignore_schedule:
+            raise RuntimeError("Config Problem: ignore_schedule must be less than 1 - must_follow_schedule")
+
+        self.decides_to_follow_schedule_selection = np.ones((n, 1), dtype=bool)
+
+    def __initialize_must_follow_schedule_selection(self, must_follow_schedule, n):
+        self.must_follow_schedule = must_follow_schedule
+        self.can_ignore_schedule_selection = np.ones((n, 1), dtype=bool)
+        self.can_ignore_schedule_selection[
+            np.random.choice(n, int(must_follow_schedule * n), replace=False)] = False
+
     # def __init_locations__(self):
     #     n = len(self.population)
     #     for loc in self.location_types:
@@ -251,7 +267,7 @@ class ScheduleRoutines(Motion):
         n = len(self.population)
         move_mask = np.ones((n, 1), dtype=bool) & self.have_schedule
         if self.ignore_schedule is not None:
-            move_mask &= self.follow_schedule_selection
+            move_mask &= self.decides_to_follow_schedule_selection
 
         if hasattr(self.population, "isolated"):
             move_mask &= ~self.population.isolated
@@ -307,11 +323,11 @@ class ScheduleRoutines(Motion):
             # Decide only at 00:05 if you are
             return
 
-        self.follow_schedule_selection[:, :] = True
+        self.decides_to_follow_schedule_selection[:, :] = True
 
-        ids = self.population.index[self.have_schedule.ravel()]
+        ids = self.population.index[self.can_ignore_schedule_selection.ravel()]
         ignore_schedule_size = int(len(self.population) * self.ignore_schedule)
         ignore_schedule = np.random.choice(ids, ignore_schedule_size, replace=False)
-        self.follow_schedule_selection[ignore_schedule, :] = False
+        self.decides_to_follow_schedule_selection[ignore_schedule, :] = False
 
 
