@@ -183,11 +183,17 @@ class Schedule:
 
 
 class ScheduleRoutines(Motion):
-    def __init__(self, world, population, schedule: [Schedule, Iterable], default="home"):
+    def __init__(self, world, population, schedule: [Schedule, Iterable], default="home",
+                 ignore_schedule=None):
         super().__init__(world, population)
+        n = len(population)
+
+        self.ignore_schedule = ignore_schedule
+        self.follow_schedule_selection = None
+        if ignore_schedule is not None:
+            self.follow_schedule_selection = np.ones((n, 1), dtype=bool)
 
         self.default_location = getattr(self.population, default)
-        n = len(population)
         self.schedules = np.empty((n, 1), dtype=object)
         if isinstance(schedule, Schedule):
             # Each particle gets an independent copy.
@@ -226,6 +232,8 @@ class ScheduleRoutines(Motion):
     #         self.population.add_property(loc, loc_vector)
 
     def step(self, t):
+        self.update_follow_daily_schedule(t)
+
         # Process triggers
         duration_trigger, end_time_trigger, area_trigger = self.trigger.T
         start_triggers = (self.start_time == t).ravel()
@@ -242,6 +250,9 @@ class ScheduleRoutines(Motion):
 
         n = len(self.population)
         move_mask = np.ones((n, 1), dtype=bool) & self.have_schedule
+        if self.ignore_schedule is not None:
+            move_mask &= self.follow_schedule_selection
+
         if hasattr(self.population, "isolated"):
             move_mask &= ~self.population.isolated
 
@@ -287,3 +298,22 @@ class ScheduleRoutines(Motion):
                 self.event_location[id_] = event.event_location
 
             self.exit_area[id_] = event.exit_area
+
+    def update_follow_daily_schedule(self, t):
+        if self.ignore_schedule is None:
+            return
+
+        if global_time.hour(t) != 0 or global_time.minute(t) != 5:
+            # Decide only at 00:05 if you are
+            return
+
+        print("Selecting Stayers")
+
+        self.follow_schedule_selection[:, :] = True
+
+        ids = self.population.index[self.have_schedule.ravel()]
+        ignore_schedule_size = int(len(self.population) * self.ignore_schedule)
+        ignore_schedule = np.random.choice(ids, ignore_schedule_size, replace=False)
+        self.follow_schedule_selection[ignore_schedule, :] = False
+
+

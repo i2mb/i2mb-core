@@ -17,8 +17,8 @@ class Configuration(dict):
         self["population_size"] = population_size
 
         # Load configuration
+        self.config_file = None
         if config_file is not None:
-            self.config_file = config_file
             self.load_config(config_file)
 
     @property
