@@ -5,6 +5,8 @@ from i2mb.utils.spatial_utils import contacts_within_radius
 
 
 class ContactHistory(Interaction):
+    file_headers = ["id_1", "id_2", "type", "start", "duration", "location"]
+
     def __init__(self, network: nx.DiGraph, radius, population):
         super().__init__()
         self.population = population
@@ -20,6 +22,7 @@ class ContactHistory(Interaction):
         super().post_init(base_file_name=base_file_name)
         self.base_file_name = f"{self.base_file_name}_contact_history.csv"
         self.file = open(self.base_file_name, "w+")
+        self.file.write(", ".join(self.file_headers) + "\n")
 
     def step(self, t):
         self.track_history_seen_contacts.clear()
