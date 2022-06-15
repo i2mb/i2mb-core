@@ -218,7 +218,7 @@ class ActivityList:
         elif not isinstance(ids, slice) and ids.dtype is np.dtype(bool):
             assert len(ids) == self.activity_values.shape[0], ("If ids is a boolean array, the size should match the"
                                                                " population size.")
-            ids = np.arange(pop_size)[ids]
+            ids = np.arange(self.activity_values.shape[0])[ids]
 
         ids = self.population.index[ids]
         if len(ids) == 0:

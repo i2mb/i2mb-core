@@ -22,8 +22,12 @@ def enforce_unique_resource_utilization(location_mask, next_activity_location):
 
 
 class ActivityManager(Model):
+    file_headers = ["id", "activity", "start", "duration", "location"]
+
     def __init__(self, population, world=None, activities: Union[ActivityList, None] = None):
 
+        super().__init__()
+        self.file = None
         if activities is None:
             activities = ActivityList(population)
 
@@ -65,6 +69,11 @@ class ActivityManager(Model):
 
     def post_init(self, base_file_name=None):
         self.generate_activity_ranking()
+        super().post_init(base_file_name=base_file_name)
+        self.base_file_name = f"{self.base_file_name}_activity_history.csv"
+        self.file = open(self.base_file_name, "w+")
+        self.file.write(", ".join(self.file_headers) + "\n")
+        self.activity_types = np.array([act_type.__name__ for act_type in self.activities.activity_types])
 
     def step(self, t):
         self.starting_activity[:] = False
@@ -106,6 +115,7 @@ class ActivityManager(Model):
             self.stop_activities(stop_ids, t)
 
     def stop_activities(self, stop_ids, t):
+        self.log_finished_activities(stop_ids)
         self.unblock_locations(stop_ids)
         next_activity = create_null_descriptor_for_act_id(self.current_default_activity[stop_ids])
         self.stage_activities(stop_ids, next_activity, t)
@@ -257,7 +267,7 @@ class ActivityManager(Model):
         # if the new activity is blocking, activity_queue, allow only the first instance
         occupied_resources = np.zeros(len(blocks_location), dtype=bool)
 
-        # We need to verify that if someone is locking the parent, than the children will also be locked.
+        # We need to verify that if someone is locking the parent, then the children will also be locked.
         blocked_location = self.location_blocked.copy()
 
         if blocks_parent_location.any():
@@ -424,6 +434,19 @@ class ActivityManager(Model):
         changed_location &= self.current_location_id != -1
         if changed_location.any():
             self.stop_activities(changed_location, t)
+
+    def log_finished_activities(self, ids):
+        ids = self.population.index[ids]
+        start = self.activities.get_current_activity_property(self.activities.start_ix, ids)
+        duration = self.activities.get_current_activity_property(self.activities.elapsed_ix, ids)
+        activity_type = self.activity_types[self.current_activity[ids]]
+        locations = [type(loc_).__name__ for loc_ in self.population.location[ids]]
+        activity_log = np.vstack([ids, activity_type, start, duration, locations]).T
+        self.file.write("\n".join([", ".join(r) for r in activity_log]) + "\n")
+
+    def __del__(self):
+        if self.file is not None:
+            self.file.close()
 
 
 
