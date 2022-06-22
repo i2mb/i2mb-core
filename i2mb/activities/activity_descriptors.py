@@ -21,6 +21,20 @@ class Eat(ActivityDescriptor):
         self.activity_class = atomic_activities.Eat
 
 
+class EatAtBar(ActivityDescriptor):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.activity_class = atomic_activities.EatAtBar
+
+
+class EatAtRestaurant(ActivityDescriptor):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.activity_class = atomic_activities.EatAtRestaurant
+
+
 class Rest(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

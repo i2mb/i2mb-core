@@ -36,11 +36,12 @@ def enumerate_activity_indices(cls):
     cls.accumulated_ix = enumerator.auto()
     cls.in_progress_ix = enumerator.auto()
     cls.blocked_for_ix = enumerator.auto()
+    cls.location_ix = enumerator.auto()
 
 
 class ActivityPrimitive:
     # Vectorized property names
-    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress", "blocked_for"]
+    __keys = ["start", "duration", "elapsed", "accumulated", "in_progress", "blocked_for", "location"]
 
     # We need an class variable to hold the indexes, but they are assigned using the enumerate_activity_indices
     # function. We use that to maintain consistent enumeration between ActivityList and ActivityPrimitive.
@@ -50,6 +51,7 @@ class ActivityPrimitive:
     accumulated_ix = None
     in_progress_ix = None
     blocked_for_ix = None
+    location_ix = None
 
     def __init__(self, population):
         # Where the activity will take place
@@ -118,8 +120,8 @@ class ActivityPrimitive:
         for loc in locations:
             idx = self.population.index[start_activity & (self.population.location == loc)]
             loc.start_activity(idx, self.id)
-
-        return
+            self.values[idx, self.in_progress_ix] = 1
+            self.values[idx, self.location_ix] = loc.id
 
     def finalize_start(self, ids):
         if not hasattr(self.population, "position"):
@@ -171,6 +173,7 @@ class ActivityList:
     accumulated_ix = None
     in_progress_ix = None
     blocked_for_ix = None
+    location_ix = None
 
     def __init__(self, population):
         population_size = len(population)
@@ -210,8 +213,8 @@ class ActivityList:
     def shape(self):
         return self.activity_values.shape
 
-    def get_activity_property(self, prop_ix, activity, ids: Union[np.ndarray, slice] = None):
-        pop_size = len(activity)
+    def get_activity_property(self, prop_ix, activity_ids, ids: Union[np.ndarray, slice] = None):
+        pop_size = len(activity_ids)
         if ids is None:
             ids = slice(None)
 
@@ -224,7 +227,7 @@ class ActivityList:
         if len(ids) == 0:
             return np.array([])
 
-        index_vector = np.array(tuple(zip(ids, [prop_ix] * pop_size, activity)))
+        index_vector = np.array(tuple(zip(ids, [prop_ix] * pop_size, activity_ids)))
         index_vector = np.ravel_multi_index(index_vector.T, self.activity_values.shape)
         return self.activity_values.ravel()[index_vector]
 
@@ -286,9 +289,6 @@ class ActivityList:
         self.set_current_activity_property(self.start_ix, act_descriptors[:, 1], ids)
         self.set_current_activity_property(self.duration_ix, act_descriptors[:, 2], ids)
         self.set_current_activity_property(self.blocked_for_ix, act_descriptors[:, 4], ids)
-
-    def start_activities(self, ids):
-        self.set_current_activity_property(self.in_progress_ix, 1, ids)
 
     def reset_current_activity(self, ids=None):
         if ids is None:

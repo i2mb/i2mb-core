@@ -3,6 +3,7 @@ import numpy as np
 from i2mb.activities.base_activity import ActivityPrimitive
 
 
+
 class Sleep(ActivityPrimitive):
     def __init__(self, population):
         super().__init__(population)
@@ -35,6 +36,7 @@ class Sleep(ActivityPrimitive):
         return self.put_people_to_bed(t, start_activity_selector)
 
     def put_people_to_bed(self, t, send_to_bed):
+        from i2mb.worlds import BedRoom
         # send_to_bed = (self.sleep & ~self.in_bed).ravel()
         if not send_to_bed.any():
             return np.array([]), np.array([])
@@ -47,6 +49,8 @@ class Sleep(ActivityPrimitive):
         if send_to_bed.any():
             self.in_bed[send_to_bed] = True
             self.sleep[send_to_bed] = True
+            self.values[send_to_bed, self.in_progress_ix] = 1
+            self.values[send_to_bed, self.location_ix] = [loc.id for loc in self.population.location[send_to_bed]]
             if hasattr(self.population, "position"):
                 self.population.position[send_to_bed] = self.beds[send_to_bed]
                 self.population.motion_mask[send_to_bed] = False
@@ -96,6 +100,14 @@ class Work(ActivityPrimitive):
 
 
 class Eat(ActivityPrimitive):
+    pass
+
+
+class EatAtRestaurant(ActivityPrimitive):
+    pass
+
+
+class EatAtBar(ActivityPrimitive):
     pass
 
 

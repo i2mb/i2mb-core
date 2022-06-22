@@ -72,7 +72,7 @@ class ActivityManager(Model):
         super().post_init(base_file_name=base_file_name)
         self.base_file_name = f"{self.base_file_name}_activity_history.csv"
         self.file = open(self.base_file_name, "w+")
-        self.file.write(", ".join(self.file_headers) + "\n")
+        self.file.write(",".join(self.file_headers) + "\n")
         self.activity_types = np.array([act_type.__name__ for act_type in self.activities.activity_types])
 
     def step(self, t):
@@ -91,7 +91,7 @@ class ActivityManager(Model):
         # pause activities
         act_pause = have_new_activities.copy()
         act_pause &= self.activities.get_current_activity_property(self.activities.duration_ix) > 0
-        # act_pause &= self.activities.get_current_activity_property(self.activities.blocked_for_ix) == 0
+        act_pause &= self.activities.get_current_activity_property(self.activities.blocked_for_ix) == 0
         act_pause &= self.current_activity != self.current_default_activity
         if act_pause.any():
             paused_descriptors = convert_activities_to_descriptors(
@@ -231,7 +231,6 @@ class ActivityManager(Model):
 
     def initiate_activities(self, t):
         if self.starting_activity.any():
-            self.activities.start_activities(self.starting_activity)
             for act in self.activities.activities:
                 start_activity = self.starting_activity & (self.current_activity == act.id)
                 if start_activity.any():
@@ -436,13 +435,19 @@ class ActivityManager(Model):
             self.stop_activities(changed_location, t)
 
     def log_finished_activities(self, ids):
+        if self.file is None:
+            return
+
         ids = self.population.index[ids]
         start = self.activities.get_current_activity_property(self.activities.start_ix, ids)
         duration = self.activities.get_current_activity_property(self.activities.elapsed_ix, ids)
-        activity_type = self.activity_types[self.current_activity[ids]]
-        locations = [type(loc_).__name__ for loc_ in self.population.location[ids]]
+        activity_type = [self.activities.activity_types[id_].__name__ for id_ in self.current_activity[ids]]
+        location_ids = self.activities.get_current_activity_property(self.activities.location_ix, ids)
+        location_ids_mask = (self.location_ids[:, 0:1] == location_ids)
+        location_types = np.where(location_ids_mask.T)[1]
+        locations = [type(loc_).__name__ for loc_ in self.location_ids[location_types, 2]]
         activity_log = np.vstack([ids, activity_type, start, duration, locations]).T
-        self.file.write("\n".join([", ".join(r) for r in activity_log]) + "\n")
+        self.file.write("\n".join([",".join(r) for r in activity_log]) + "\n")
 
     def __del__(self):
         if self.file is not None:
