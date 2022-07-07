@@ -1,4 +1,4 @@
-from i2mb.utils import cache_manager
+from i2mb.utils import cache_manager, global_time
 
 
 class Engine:
@@ -44,6 +44,7 @@ class Engine:
             yield None
 
             self.time += 1
+            global_time.set_sim_time(self.time)
             cache_manager.time = self.time
 
             if self.num_steps is not None and self.time == self.num_steps - 1:

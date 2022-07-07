@@ -1,6 +1,13 @@
 class SimulationTime:
     def __init__(self, tick_hour=8):
         self.ticks_hour = tick_hour
+        self.__current_sim_time = 0
+
+    def sim_time(self):
+        return self.__current_sim_time
+
+    def set_sim_time(self, v):
+        self.__current_sim_time = v
 
     @property
     def time_scalar(self):

@@ -31,4 +31,10 @@ class Enumerator:
 cache_manager = CacheManager()
 
 global_time = SimulationTime()
+
+
+def time():
+    return global_time.sim_time()
+
+
 int_inf = int64(0x4FFFFFFFFFFFFFFF)
