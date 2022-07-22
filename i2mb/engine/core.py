@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
 from i2mb.utils import cache_manager, global_time
+
+if TYPE_CHECKING:
+    from i2mb import Model
 
 
 class Engine:
-    def __init__(self, models, populations=None, base_file_name="./", num_steps=None, select=None, debug=False):
+    def __init__(self, models: list['Model'], populations=None, base_file_name="./",
+                 num_steps=None, select=None, debug=False):
         self.base_file_name = base_file_name
         self.debug = debug
         if debug:
@@ -32,6 +37,9 @@ class Engine:
                 p.set_current_time(self.time)
 
             for m in self.models:
+                m.pre_step(self.time)
+
+            for m in self.models:
                 if self.debug:
                     t0 = self.current_time()
 
@@ -40,6 +48,9 @@ class Engine:
                 if self.debug:
                     tf = self.current_time()
                     self.debug_timer.setdefault(f"{m}", []).append((tf - t0) * 1e-9)
+
+            for m in self.models:
+                m.post_step(self.time)
 
             yield None
 

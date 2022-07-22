@@ -2,7 +2,15 @@ class Model:
     def __init__(self):
         self.base_file_name = "./"
 
+    def pre_step(self, t):
+        """Prepare to take the step."""
+        pass
+
     def step(self, t):
+        pass
+
+    def post_step(self, t):
+        """Clean up after step"""
         pass
 
     def final(self, t):
