@@ -15,8 +15,15 @@ class ArrayView:
         self.__cv = parent[p_index]
 
     def __setitem__(self, key, value):
-        key = self.__p_index[key]
-        self.__parent[key] = value
+        key = np.s_[key]
+        if not isinstance(key, tuple):
+            key = self.__p_index[key]
+            self.__parent[key] = value
+
+        else:
+            _key = self.__p_index[key[0]]
+            _key = (_key, *key[1:])
+            self.__parent[_key] = value
 
     def __getitem__(self, item):
         return self.__cv.__getitem__(item)
@@ -160,8 +167,8 @@ class AgentList:
         for p, v in zip(self.__agents, values):
             object.__setattr__(p, prop, v)
 
-    # def find_indexes(self, idx):
-    #     return (self.index.reshape((-1, 1)) == idx.ravel()).any(axis=1).ravel()
+    def find_indexes(self, idx):
+        return (self.index.reshape((-1, 1)) == idx.ravel()).any(axis=1).ravel()
 
 
 class Agent:
