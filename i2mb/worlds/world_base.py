@@ -19,6 +19,33 @@ class World(Model, Area):
                       subareas=subareas)
         self.landmarks = []
 
+        # Add callable actions to perform when entering and existing a space
+        self.entry_actions = []
+        self.exit_actions = []
+
+        # Define the logical levels an agent needs to traverse in order to exit/enter a building
+        self.entry_route = np.array([self])
+
+    def active_enter_world(self, n, idx=None, arriving_from=None):
+        positions = self.enter_world(n, idx, arriving_from)
+        for action in self.entry_actions:
+            action(n, idx, self, arriving_from)
+
+        return positions
+
+    def active_exit_world(self, idx, global_population):
+        self.exit_world(idx, global_population)
+        for action in self.exit_actions:
+            action(idx, self, global_population)
+
+        return
+
+    def is_empty(self):
+        if hasattr(self, "population") and len(self.population) > 0:  # noqa
+            return False
+
+        return True
+
     def enter_world(self, n, idx=None, arriving_from=None):
         """The default agent place of entry is a randomly distributed event_location within the space.
         :param n:
@@ -66,7 +93,7 @@ class World(Model, Area):
 
     def random_position(self, n):
         """Generates `n` random positions in the world."""
-        return np.random.random((n, 2)) * self._dims
+        return np.random.random((n, 2)) * self.dims
 
     def list_all_regions(self):
         return []

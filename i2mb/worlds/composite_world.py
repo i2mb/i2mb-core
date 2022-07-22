@@ -50,7 +50,6 @@ class CompositeWorld(World):
         self.local_activities = []
         self.available_activities = []
         self.activity_types = set()
-        self.visit_counter = {}
 
         # Define the logical levels an agent needs to traverse in order to exit a building
         self.entry_route = np.array([self])
@@ -61,6 +60,7 @@ class CompositeWorld(World):
         if map_file is not None:
             self.load_map(map_file)
 
+        self.population = population
         if population is None:
             self.population = None
             self.gravity = np.zeros((0, 2))
@@ -122,23 +122,24 @@ class CompositeWorld(World):
         if self.is_empty():
             return
 
-        positions = self.population.position[self.location == self]
-        if len(positions) == 0:
-            return
+        mask = self.population.find_indexes(idx).ravel()
+        positions = self.population.position[mask]
+        self.population.position[mask] = self.constrain_positions(positions)
+        for lm in self.landmarks:
+            lm.remove_overlap()
 
-        mask = mask[self.location == self]
-        check_top = mask.ravel() & (positions[:, 0] > self.dims[0])
-        check_right = mask.ravel() & (positions[:, 1] > self.dims[1])
-        check_left = mask.ravel() & (positions[:, 0] < 0)
-        check_bottom = mask.ravel() & (positions[:, 1] < 0)
+    def constrain_positions(self, positions):
+        check_top = (positions[:, 0] > self.dims[0])
+        check_right = (positions[:, 1] > self.dims[1])
+        check_left = (positions[:, 0] < 0)
+        check_bottom = (positions[:, 1] < 0)
 
+        # enforce constraints
         positions[check_top, 0] = self.dims[0]
         positions[check_right, 1] = self.dims[1]
         positions[check_left, 0] = 0
         positions[check_bottom, 1] = 0
-        self.population.position[self.location == self] = positions
-        for lm in self.landmarks:
-            lm.remove_overlap()
+        return positions
 
     def get_containment_regions(self, idx):
         return self.containment_region[idx]
@@ -148,84 +149,6 @@ class CompositeWorld(World):
 
     def load_map(self, map_file):
         pass
-
-    def move_agents(self, idx, region):
-        """Only the outer most region can move agents between two contained worlds"""
-        idx = self.population.index[idx][~self.population.remain[idx]]
-
-        # Remove ids that are already in region
-        mask = self.population.location[idx] == region
-        idx = self.population.index[idx][~mask]
-        if len(idx) == 0:
-            return
-
-        departed_from_regions = self.depart_current_region(idx, region)
-        self.enter_region(idx, region, departed_from_regions)
-        cache_manager.invalidate()
-
-    def enter_region(self, idx, region, departed_from_regions):
-        idx_ = idx
-        region.prepare_entrance(idx, self.population)
-        entrance_region = region.get_entrance_sub_region()
-        self.update_visit_counter(idx, entrance_region, region)
-
-        region = entrance_region
-        if region.population is not None:
-            old_idx = region.population.index
-            idx = np.union1d(old_idx, idx)
-
-        region.population = self.population[idx]
-        region.position = self.position[idx]
-        self.location[idx] = region
-        self.position[idx_] = region.enter_world(len(idx_), idx=idx_, arriving_from=departed_from_regions)
-        self.gravity[idx_] = np.zeros((len(idx_), 2))
-        region.location = self.location[idx]
-        self.population.regions.add(region)
-        if self not in self.location and self in self.population.regions:
-            self.population.regions.remove(self)
-
-    def update_visit_counter(self, idx, entrance_region, region):
-        if type(region) not in self.visit_counter:
-            # avoids allocation of default value when the key already exists.
-            self.visit_counter[type(region)] = np.zeros(len(self.population), dtype=int)
-
-        if type(entrance_region) not in self.visit_counter:
-            # avoids allocation of default value when the key already exists.
-            self.visit_counter[type(entrance_region)] = np.zeros(len(self.population), dtype=int)
-
-        self.visit_counter[type(region)][idx] += 1
-        if entrance_region is not region:
-            self.visit_counter[type(entrance_region)][idx] += 1
-
-    def depart_current_region(self, idx, destination):
-        depart = set(self.location[idx]) - {self}
-        for r in depart:
-            old_idx = r.population.index
-            new_idx = np.setdiff1d(old_idx, idx)
-            leaving_idx = np.intersect1d(old_idx, idx)
-            self.execute_transfer_route(destination, leaving_idx, r)
-            r.population = self.population[new_idx]
-            r.location = self.location[new_idx]
-            r.position = self.position[new_idx]
-            if r.is_empty():
-                self.population.regions.remove(r)
-
-        return self.location[idx]
-
-    def execute_transfer_route(self, destination, leaving_idx, r):
-        entry_matrix = r.entry_route.reshape(-1, 1) == destination.entry_route
-        entry_levels = ~(entry_matrix.any(axis=0))
-        exit_levels = ~(entry_matrix.any(axis=1))
-        for level in r.entry_route[exit_levels]:
-            level.exit_world(leaving_idx, self.population)
-        for level in destination.entry_route[entry_levels]:
-            level.prepare_entrance(leaving_idx, self.population)
-
-    def is_empty(self):
-        if hasattr(self, "population") and len(self.population) > 0:
-            return False
-
-        return True
 
     def add_regions(self, regions):
         self.regions.extend(regions)
@@ -304,10 +227,10 @@ class CompositeWorld(World):
 
         return region_list
 
-    def exit_world(self, idx, global_population):
-        if idx is not None:
-            bool_idx = self.population.find_indexes(idx)
-            if hasattr(self.population, "reset_location_activities"):
-                self.population.reset_location_activities[bool_idx] = True
+    def enter_world(self, n, idx=None, arriving_from=None):
+        boo_idx = self.population.find_indexes(idx)
+        self.population.gravity[boo_idx] = np.zeros((n, 2))
+
+        return super().enter_world(n, idx, arriving_from)
 
 

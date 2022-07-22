@@ -96,15 +96,3 @@ class Office(BaseRoom):
         bool_idx = self.population.find_indexes(idx)
         self.population.motion_mask[bool_idx] = True
         self.raise_agents(idx)
-
-    def exit_world(self, idx, global_population):
-        bool_idx = self.population.find_indexes(idx)
-        if hasattr(self.population, "reset_location_activities"):
-            self.population.reset_location_activities[bool_idx] = True
-
-        super().exit_world(idx, global_population)
-
-
-
-
-

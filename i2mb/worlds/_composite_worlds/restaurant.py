@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 from matplotlib.patches import Rectangle
 
+from i2mb.activities.activity_descriptors import EatAtRestaurant
 from i2mb.worlds import CompositeWorld
 from i2mb.worlds.furniture.tables import RectangularTable
 from i2mb.worlds.world_base import PublicSpace
@@ -22,13 +23,20 @@ class Restaurant(CompositeWorld, PublicSpace):
         self.tables = [RectangularTable(sits=seats_table, horizontal=h_tables) for _ in range(num_tables)]
         self.available_tables = deque(self.tables, )
 
-        # Determine restaurant dimentions
+        # Determine restaurant dimensions
         tw, tl = self.tables[0].get_bbox()[2:]
         num_rows = int(np.ceil(num_tables / tables_per_row))
         w = (tables_per_row + 1) * corridor_width + tables_per_row * tw
         l = (tables_per_row + 1) * corridor_width + num_rows * tl
         kwargs["dims"] = (w, l)
         super().__init__(**kwargs)
+
+        activities = [EatAtRestaurant(location=self)]
+        self.local_activities.extend(activities)
+        self.default_activity = activities[0]
+
+        # Standalone building
+        self.available_activities.extend(activities)
 
     def arrange_tables(self):
         row = col = 0
@@ -87,7 +95,10 @@ class Restaurant(CompositeWorld, PublicSpace):
         super().exit_world(idx, global_population)
 
         for ix in idx:
-            table = self.table_assignment[ix]
+            table = self.table_assignment.get(ix)
+            if table is None:
+                continue
+
             table.occupants -= 1
             del self.table_assignment[ix]
             if table.occupants == 0:

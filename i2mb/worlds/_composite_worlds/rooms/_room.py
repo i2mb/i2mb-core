@@ -60,11 +60,13 @@ class BaseRoom(CompositeWorld):
         self.population.motion_mask[bool_ix] = True
         self.stop_activity(idx, None)
 
-    def check_positions(self, mask):
-        super().check_positions(mask)
+    def check_positions(self, ids):
+        super().check_positions(ids)
 
-        ids = self.population.index[self.location == self]
-        positions = self.population.position[self.location == self]
+        return
+        mask = self.population.find_indexes(ids)
+        positions = self.population.position[mask]
+        idx = self.population.index[mask]
 
         # check if on furniture
         checked = np.zeros(len(positions), dtype=bool)
@@ -81,15 +83,15 @@ class BaseRoom(CompositeWorld):
                 x0, y0 = origin
                 x1, y1 = upper
 
-                for id, pos in zip(ids[on_furniture & mask.ravel()], positions[on_furniture & mask.ravel()]):
+                for id, pos in zip(idx[on_furniture & mask.ravel()], positions[on_furniture & mask.ravel()]):
                     rectangle = np.array([origin, upper, np.array([x0, y1]), np.array([x1, y0])])
                     distances = np.array([pos - origin, upper - pos, pos - rectangle[2], rectangle[3] - pos])
                     mag = lambda x: np.sqrt(sum(i ** 2 for i in x))
                     abs_diff = np.array([mag(d) for d in distances])
                     min = distances[0:2].argmin()
                     dmin = abs_diff[~np.isclose(abs_diff, 0)].argmin()
-                    idx = np.argwhere(ids == id).ravel()[0]
-                    positions[idx, min % 2] = origin[min % 2] if min // 2 == 0 else upper[min % 2]
+                    idx_ = np.argwhere(ids == id).ravel()[0]
+                    positions[idx_, min % 2] = origin[min % 2] if min // 2 == 0 else upper[min % 2]
 
                     if not hasattr(self.population, "target"):
                         continue
@@ -110,7 +112,7 @@ class BaseRoom(CompositeWorld):
 
                 checked[on_furniture] = True
 
-        self.population.position[self.location == self] = np.array(positions)
+        self.population.position[mask] = np.array(positions)
 
     def get_furniture_grid(self):
         for id, f in enumerate(self.furniture):

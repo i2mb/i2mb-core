@@ -143,7 +143,10 @@ class Bar(CompositeWorld, PublicSpace):
         super().exit_world(idx, global_population)
 
         for ix in idx:
-            table = self.table_assignment[ix]
+            table = self.table_assignment.get(ix)
+            if table is None:
+                continue
+                
             table.occupants -= 1
             del self.table_assignment[ix]
             if table.occupants == 0 and table != self.bar:

@@ -16,12 +16,16 @@ class Motion(Model):
         if not self.population.updated:
             return self.population.positions
 
-        self.update_positions(t)
-        self.check_limits(t)
-        return self.positions
+        idx_bool = self.update_positions(t)
+        self.check_limits(idx_bool)
 
     def update_positions(self, t):
-        pass
+        return np.zeros(len(self.population), dtype=bool)
 
-    def check_limits(self, t):
-        self.world.check_positions(self.motion_mask)
+    def check_limits(self, idx_bool):
+        locations = set(self.population.location[idx_bool].ravel())
+
+        idx = self.population.index[idx_bool].ravel()
+        for location in locations:
+            mask = (self.population.location[idx_bool].ravel() == location).ravel()  # noqa
+            location.check_positions(idx[mask])

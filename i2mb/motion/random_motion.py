@@ -5,10 +5,10 @@ from i2mb.utils import cache_manager
 
 
 class RandomMotion(Motion):
-    def __init__(self, world, population, gravity=None, step_size=1):
-        super().__init__(world, population)
+    def __init__(self, population, gravity=None, step_size=1.):
+        super().__init__(population)
         self.gravity_field = gravity
-        self.step_size = step_size
+        self.step_size = float(step_size)
 
     def update_positions(self, t):
         positions = self.population.position
@@ -20,7 +20,7 @@ class RandomMotion(Motion):
         if not mask.any():
             return
 
-        direction = np.random.random((mask.sum(), 2)) * 2 - 1
+        direction = np.random.random((mask.sum(), 2)) * 2. - 1.
         positions[mask] += direction * self.step_size
 
         if self.gravity_field is not None:
@@ -32,3 +32,5 @@ class RandomMotion(Motion):
         # If motion precedes any distance computing module, we need to invalidate the cache to avoid using old
         # distances.
         cache_manager.invalidate()
+
+        return mask
