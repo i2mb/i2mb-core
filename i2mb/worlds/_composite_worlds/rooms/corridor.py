@@ -16,7 +16,7 @@ class Corridor(BaseRoom):
         self.public = public
         self.floor_number = floor_number
 
-        self.__room_entries = np.empty((0,2), dtype=float)
+        self.__room_entries = np.empty((0, 2), dtype=float)
         self.__adjacent_rooms = np.empty(0, dtype=int)
         self.furniture_origins = None
         self.furniture_upper = None
@@ -26,6 +26,8 @@ class Corridor(BaseRoom):
 
     def set_room_entries(self, room_entry, id_):
         self.__room_entries = np.append(self.__room_entries, room_entry.reshape(-1, 2), axis=0)
+        self.__room_entries = self.constrain_positions(self.__room_entries)
+
         self.points.append(self.__room_entries[-1, :])
         self.__adjacent_rooms = np.append(self.__adjacent_rooms, [id(id_)])
 
