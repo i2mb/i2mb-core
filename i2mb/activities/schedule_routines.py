@@ -183,10 +183,11 @@ class Schedule:
 
 
 class ScheduleRoutines(Motion):
-    def __init__(self, world, population, schedule: [Schedule, Iterable], default="home",
+    def __init__(self, population, relocator, schedule: [Schedule, Iterable], default="home",
                  must_follow_schedule=1.,
                  ignore_schedule=None):
-        super().__init__(world, population)
+        super().__init__(population)
+        self.relocator = relocator
         n = len(population)
 
         self.__initialize_must_follow_schedule_selection(must_follow_schedule, n)
@@ -284,7 +285,7 @@ class ScheduleRoutines(Motion):
 
         regions = set(self.event_location[move_mask.ravel()].ravel())
         for r in regions:
-            self.world.move_agents(move_mask.ravel() & (self.event_location == r), r)
+            self.relocator.move_agents(move_mask.ravel() & (self.event_location == r), r)
 
         self.update_events(end_triggers, t)
 

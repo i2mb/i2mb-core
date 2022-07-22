@@ -28,13 +28,25 @@ from ..utils import cache_manager
 class CompositeWorld(World):
     def __init__(self, dims=None, population: 'AgentList' = None, regions=None, origin=None, map_file=None,
                  containment=False, waiting_room=False, rotation=0, scale=1):
+
         self.regions = []
         super().__init__(dims, origin=origin, rotation=rotation, scale=scale, subareas=self.regions)
 
         self.waiting_room = waiting_room
         self.containment = containment
+
+        # Region description
         self.region_origins = np.array([])
         self.region_dimensions = np.array([])
+
+        # Handle Single index with views
+        self.__region_index = np.array([[-1, 0, -1],
+                                       [self.id, 0, self]])
+        self.__region_index_slice = slice(None)
+        self.__region_index_pos = 1
+        self.__blocked_locations = np.array([False, False], dtype=bool)
+
+        # Activity Information
         self.local_activities = []
         self.available_activities = []
         self.activity_types = set()
@@ -51,9 +63,7 @@ class CompositeWorld(World):
 
         if population is None:
             self.population = None
-            self.location = np.array([])
-            self.position = np.array([])
-            self.gravity = np.array([])
+            self.gravity = np.zeros((0, 2))
             self.containment_region = np.array([])
             self.remain = np.array([])
             if waiting_room:
@@ -61,18 +71,14 @@ class CompositeWorld(World):
 
             return
 
-        self.population = population
         n = len(population)
         self.__in_region = np.zeros(n, dtype=bool)
-        self.location = np.array([self] * len(population))
-        self.position = self.enter_world(n)
         self.containment_region = np.empty((n,), dtype=object)
         self.home = np.empty((n,), dtype=object)
         self.at_home = np.zeros((n,), dtype=bool)
         self.remain = np.zeros((n,), dtype=bool)
-        population.add_property("location", self.location)
+
         population.add_property("remain", self.remain)
-        population.add_property("position", self.position)
         population.add_property("containment_region", self.containment_region)
         population.add_property("home", self.home)
         population.add_property("at_home", self.at_home)
@@ -87,12 +93,32 @@ class CompositeWorld(World):
     def __hash__(self):
         return hash(id(self))
 
-    def check_positions(self, mask):
-        if hasattr(self.population, "regions"):
-            for r in self.population.regions:
-                r_mask = mask[r.population.index]
-                r.check_positions(r_mask)
+    @property
+    def region_index(self):
+        return self.__region_index[self.__region_index_slice]
 
+    @property
+    def blocked(self):
+        return self.__blocked_locations[self.__region_index_pos]
+
+    @blocked.setter
+    def blocked(self, v):
+        self.__blocked_locations[self.__region_index_pos] = v
+
+    @property
+    def index(self):
+        return self.__region_index_pos
+
+    @property
+    def blocked_locations(self):
+        return self.__blocked_locations[self.__region_index_slice]
+
+    def block_locations(self, selector, v):
+        idx = np.arange(len(self.__blocked_locations), dtype=int)
+        idx = idx[self.__region_index_slice][selector]
+        self.__blocked_locations[idx] = v
+
+    def check_positions(self, idx):
         if self.is_empty():
             return
 
@@ -206,6 +232,9 @@ class CompositeWorld(World):
         for region in regions:
             region.parent = self
 
+        self.update_region_index()
+
+        # Adjust geometries
         self.region_origins = np.array([r.origin for r in self.regions])
         self.region_dimensions = np.array([r.dims for r in self.regions])
 
@@ -220,24 +249,41 @@ class CompositeWorld(World):
         region_dimensions = np.max(self.region_dimensions + self.region_origins, axis=0)
         self.dims = region_dimensions
 
+    def update_region_index(self):
+        region_index = [[-1, 0, -1]]
+        for region in self.list_all_regions():
+            region_index.append([region.id, 0, region])
+
+        self.__region_index = np.array(region_index)
+        sort = np.argsort(self.__region_index[:, 0])
+        self.__region_index = self.__region_index[sort]
+        self.__region_index_pos = np.searchsorted(self.__region_index[:, 0], self.id)
+        self.__blocked_locations = np.zeros(len(self.__region_index), dtype=bool)
+
+        # Unify index and blocking across all regions
+        self.unify_index()
+
+        # replace parent.id for actual parent index
+        self.__region_index[:, 1] = [r != -1 and
+                                     (r.parent is not None and r.parent.index or 0)
+                                     or 0 for r in self.__region_index[:, 2]]
+
+    def unify_index(self):
+        for region in self.list_all_regions():
+            if region == self:
+                continue
+
+            region.__region_index = self.__region_index
+            region.__blocked_locations = self.__blocked_locations
+            region.__region_index_pos = np.searchsorted(self.__region_index[:, 0], region.id)
+            region.__region_index_slice = np.sort(
+                np.searchsorted(self.__region_index[:, 0], [-1] + [r.id for r in region.list_all_regions()]))
+
     def get_absolute_origin(self):
         if self.parent is None:
             return self.origin
 
         return self.origin + self.parent.get_absolute_origin()
-
-    def get_absolute_positions(self):
-        abs_pos = np.zeros((len(self.population), 2))
-        seen_index = np.array([])
-        for r in self.population.regions:
-            idx = r.population.index
-            seen_index = np.union1d(seen_index, idx)
-            abs_pos[idx] = r.get_absolute_origin() + r.population.position
-
-        idx_ = np.setdiff1d(self.population.index, seen_index)
-        abs_pos[idx_] = self.population.position[idx_] + self.origin
-
-        return abs_pos
 
     def draw_world(self, ax=None, origin=(0, 0), **kwargs):
         bbox = kwargs.get("bbox", False)

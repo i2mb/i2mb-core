@@ -5,13 +5,14 @@ from .base_intervention import Intervention
 
 
 class ContactIsolationIntervention(Intervention):
-    def __init__(self, population, world, freeze_isolated=False, quarantine_household=False):
+    def __init__(self, population, world, relocator, freeze_isolated=False, quarantine_household=False):
         self.quarantine_household = quarantine_household
         self.population = population
         self.world = world
+        self.relocator = relocator
         self.freeze_isolated = freeze_isolated
 
-        # Currently isolated agents
+        # Currently, isolated agents
         self.isolated = np.zeros((len(population), 1), dtype=bool)
 
         # Number of times an agent was isolated
@@ -95,7 +96,7 @@ class ContactIsolationIntervention(Intervention):
             regions = self.world.containment_region
             new_isolated = new_isolated.ravel() & (regions != self.population.location)
             for r in set(regions[new_isolated].ravel()):
-                self.world.move_agents((regions == r) & new_isolated, r)
+                self.relocator.move_agents((regions == r) & new_isolated, r)
 
     def release_agents(self, t):
         recovered_ids = self.leave_request.ravel()
@@ -108,6 +109,6 @@ class ContactIsolationIntervention(Intervention):
             regions = self.world.home
             recovered_ids = recovered_ids.ravel() & (regions != self.population.location)
             for r in set(regions[recovered_ids]):
-                self.world.move_agents((regions == r) & recovered_ids, r)
+                self.relocator.move_agents((regions == r) & recovered_ids, r)
 
             self.leave_request[:] = False

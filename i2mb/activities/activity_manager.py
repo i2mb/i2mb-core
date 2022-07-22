@@ -24,16 +24,17 @@ def enforce_unique_resource_utilization(location_mask, next_activity_location):
 class ActivityManager(Model):
     file_headers = ["id", "activity", "start", "duration", "location"]
 
-    def __init__(self, population, world=None, activities: Union[ActivityList, None] = None):
-
+    def __init__(self, population, relocator: 'Relocator' = None, controllers: list[ActivityController] = None):
         super().__init__()
         self.file = None
         if activities is None:
             activities = ActivityList(population)
 
-        self.activities = activities
-        self.current_activity = self.activities.current_activity
-        self.world = world
+        self.relocator = None
+        self.region_index = np.array([-1, -1, -1])
+        self.blocked_locations = np.zeros(len(self.region_index), dtype=bool)
+
+        population_size = len(population)
         self.population = population
 
         # Location occupancy management

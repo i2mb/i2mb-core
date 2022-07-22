@@ -7,6 +7,11 @@ import numpy as np
 from i2mb.engine.model import Model
 from i2mb.worlds._area import Area
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from i2mb.engine.agents import AgentList
+    from i2mb.engine.relocator import Relocator
+
 
 class World(Model, Area):
     def __init__(self, dims=None, height=None, width=None, origin=None, rotation=0, scale=1, subareas=None):
@@ -80,7 +85,8 @@ class Landmark(ABC):
 class Scenario:
     """Scenario classes serve to consolidate world construction."""
 
-    def __init__(self, population, **kwargs):
+    def __init__(self, population: 'AgentList', relocator: 'Relocator' = None, **kwargs):
+        self.relocator = relocator
         self.v_space = 1
         self.h_space = 1
         self.left = 1
@@ -233,6 +239,9 @@ class BlankSpace(Area):
 
     def post_init(self):
         return
+
+    def list_all_regions(self):
+        return [self]
 
 
 class PublicSpace(World):

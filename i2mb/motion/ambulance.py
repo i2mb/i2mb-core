@@ -4,8 +4,9 @@ from i2mb.worlds import World, CompositeWorld
 
 
 class Ambulance(Motion):
-    def __init__(self, world: CompositeWorld, population, hospital, symptom_level=SymptomLevels.strong):
-        super().__init__(world, population)
+    def __init__(self, population, relocator, hospital, symptom_level=SymptomLevels.strong):
+        super().__init__(population)
+        self.relocator = relocator
         self.symptom_level = symptom_level
         self.hospital = hospital
 
@@ -20,4 +21,4 @@ class Ambulance(Motion):
 
         move_to_hospital = hospitalize.ravel()
         if move_to_hospital.any():
-            self.world.move_agents(move_to_hospital, self.hospital)
+            self.relocator.move_agents(move_to_hospital, self.hospital)

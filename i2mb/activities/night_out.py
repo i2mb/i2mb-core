@@ -9,11 +9,12 @@ _0200 = global_time.make_time(hour=2)
 
 
 class NightOut(Motion):
-    def __init__(self, world, population, group_location, venues, duration, arrival, min_capacity=0.5,
+    def __init__(self, population, relocator, group_location, venues, duration, arrival, min_capacity=0.5,
                  opening_hours=_1700, closing_hours=_0200):
-        super().__init__(world, population)
+        super().__init__(population)
 
         # Eventually this goes to the restaurants and bars
+        self.relocator = relocator
         self.time_sheet = {}
         self.destinations = np.zeros(len(population), dtype=object)
         self.leave_time = np.zeros(len(population), dtype=int)
@@ -60,7 +61,7 @@ class NightOut(Motion):
 
                 continue
 
-            self.world.move_agents(leave_ix, venue)
+            self.relocator.move_agents(leave_ix, venue)
             leave_ix = leave_ix[~self.population.remain[leave_ix]]
             venue.sit_agents(leave_ix)
 
@@ -77,7 +78,7 @@ class NightOut(Motion):
 
         destinations = set(self.population.home[return_ix])
         for r in destinations:
-            self.world.move_agents(return_ix & (self.population.home == r), r)
+            self.relocator.move_agents(return_ix & (self.population.home == r), r)
 
     def plan_night_out(self, t):
         self.going_out[:] = False
