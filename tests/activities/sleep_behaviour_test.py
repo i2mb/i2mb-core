@@ -19,8 +19,8 @@ from unittest import TestCase
 import numpy as np
 from matplotlib import pyplot as plt
 
-from i2mb.activities.activity_manager import ActivityManager
-from i2mb.activities.base_activity import ActivityList
+from i2mb.activities.activity_manager import DefaultActivityController
+from i2mb.activities.base_activity import ActivityManager
 from i2mb.activities.controllers.sleep import SleepBehaviourController
 from i2mb.utils import global_time
 from i2mb.worlds import Apartment
@@ -36,8 +36,8 @@ class TestSleepBehaviour(TestCase):
         print(f"Running for {global_time.make_time(day=3)} ticks")
 
         self.population = self.w.population
-        self.activity_list = ActivityList(self.w.population)
-        self.activity_manager = ActivityManager(self.w.population, self.w.universe, activities=self.activity_list)
+        self.activity_list = ActivityManager(self.w.population)
+        self.activity_manager = DefaultActivityController(self.w.population, self.w.universe, activities=self.activity_list)
 
         # sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
         # sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
@@ -102,7 +102,7 @@ class TestSleepBehaviour(TestCase):
 
             __expected_current_activity = [0] * len(self.w.population)
             if (self.activity_manager.current_activity == 1).all():
-                self.assertTrue(self.activity_manager.activities.activities[1].in_bed.all(),
+                self.assertTrue(self.activity_manager.activity_manager.activity_manager[1].in_bed.all(),
                                 msg=f"Error occurred at frame {frame}")
                 __expected_current_activity = [1] * len(self.w.population)
                 expected_location = list(self.sleep_model.sleep_profiles.specifications[:, 5])
@@ -123,7 +123,7 @@ class TestSleepBehaviour(TestCase):
 
         self.setup_engine(move_agents_to_rooms, no_gui=True)
         self.walk_engine(1)
-        expected_current_activity = [1] * len(self.w.population)
+        expected_current_activity = [0] * len(self.w.population)
         current_activity = list(self.activity_manager.current_activity)
         self.assertListEqual(expected_current_activity, current_activity)
 
@@ -150,7 +150,7 @@ class TestSleepBehaviour(TestCase):
 
             __expected_current_activity = [0] * len(self.w.population)
             if (self.activity_manager.current_activity == 1).all():
-                self.assertTrue(self.activity_manager.activities.activities[1].in_bed.all(),
+                self.assertTrue(self.activity_manager.activity_manager.activity_manager[1].in_bed.all(),
                                 msg=f"Error occurred at frame {frame}")
                 __expected_current_activity = [1] * len(self.w.population)
                 expected_location = list(self.sleep_model.sleep_profiles.specifications[:, 5])
@@ -168,7 +168,7 @@ class TestSleepBehaviour(TestCase):
 
         self.setup_engine(move_agents_to_rooms, no_gui=True)
         self.walk_engine(1)
-        expected_current_activity = [1] * len(self.w.population)
+        expected_current_activity = [0] * len(self.w.population)
         current_activity = list(self.activity_manager.current_activity)
         self.assertListEqual(expected_current_activity, current_activity)
 
@@ -195,7 +195,7 @@ class TestSleepBehaviour(TestCase):
 
             if (self.activity_manager.current_activity == 1).any():
                 expected = (self.activity_manager.current_activity == 1).sum()
-                current = self.activity_manager.activities.activities[1].in_bed.sum()
+                current = self.activity_manager.activity_manager.activity_manager[1].in_bed.sum()
                 self.assertEqual(expected, current,
                                  msg=f"Error occurred at frame {frame}")
 
@@ -217,7 +217,7 @@ class TestSleepBehaviour(TestCase):
         self.sleep_model.sleep_midpoint = sleep_midpoint
         self.sleep_model.sleep_duration = sleep_duration
         self.walk_engine(1)
-        expected_current_activity = [1] * len(self.w.population)
+        expected_current_activity = [0] * len(self.w.population)
         current_activity = list(self.activity_manager.current_activity)
         self.assertListEqual(expected_current_activity, current_activity)
 

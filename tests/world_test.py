@@ -8,6 +8,7 @@ from matplotlib.animation import FuncAnimation
 
 from i2mb.engine.core import Engine
 from i2mb.engine.agents import AgentList
+from i2mb.engine.relocator import Relocator
 from i2mb.interactions.digital_contact_tracing import RegionContactTracing
 from i2mb.interventions.contact_isolation import ContactIsolationIntervention
 from i2mb.motion.random_motion import RandomMotion
@@ -46,7 +47,8 @@ if __name__ == "__main__":
 
     world = CompositeWorld(WORLD_BOX, population, regions=[roaming_area, isolation])
 
-    world.move_agents(slice(None), roaming_area)
+    relocator = Relocator(population, world)
+    relocator.move_agents(slice(None), roaming_area)
 
     world.home_regions[:] = roaming_area
     world.containment_region[:] = isolation

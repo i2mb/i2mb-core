@@ -13,449 +13,450 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from unittest import TestCase
-from warnings import warn
+import os.path
+from unittest import skip
 
 import numpy as np
 
-import i2mb.activities.atomic_activities as aa
+from i2mb.activities import ActivityProperties, TypesOfLocationBlocking, ActivityDescriptorProperties
 from i2mb.activities.activity_manager import ActivityManager
-from i2mb.activities.base_activity import ActivityList
+from i2mb.activities.atomic_activities import Sleep, Work
+from i2mb.activities.base_activity import ActivityNone
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
 from i2mb.engine.agents import AgentList
 from i2mb.utils import global_time
 from i2mb.worlds import Apartment
+from tests.i2mb_test_case import I2MBTestCase
 from tests.world_tester import WorldBuilder
 
-global_time.ticks_hour = 12  # 5 minutes
 
-
-class TestActivityManager(TestCase):
+class TestActivityManager(I2MBTestCase):
     def setUp(self) -> None:
-        self.population = AgentList(10)
-        self.activity_classes = [aa.Work, aa.Sink, aa.Shower, aa.Cook, aa.Rest]
-        self.t = 0
+        self.population_size = 10
+        self.population = AgentList(self.population_size)
+        global_time.set_sim_time(0)
 
-    def setup_activity_manager(self):
-        self.t = 0
-        self.activity_list = ActivityList(self.population)
-        for act_cls in self.activity_classes:
-            self.activity_list.register(act_cls(self.population))
+    def init_list_and_test(self, relocator=None):
+        activities = [c(self.population) for c in [Sleep, Work]]
+        activity_manager = ActivityManager(self.population, relocator=relocator)
+        for activity in activities:
+            activity_manager.register_activity(activity)
 
-        self.activity_manager = ActivityManager(self.population, activities=self.activity_list)
+        test_pattern = activities
+        return activity_manager, test_pattern
 
-    def setup_world(self):
-        self.w = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
-                              sim_duration=global_time.make_time(day=4), no_gui=True)
+    def init_population_list_and_test(self):
+        activity_list, test_pattern = self.init_list_and_test()
+        return activity_list, test_pattern, self.population
 
-    def walk_manager(self, num_steps):
-        for step in range(num_steps):
-            self.activity_manager.step(self.t)
-            self.t += 1
+    def test_creation(self):
+        activity_manager, test_pattern = self.init_list_and_test()
+        self.assertListEqual([type(c) for c in activity_manager.activity_list.activities],
+                             [type(c) for c in [ActivityNone(self.population)] + test_pattern],  # noqa
+                             msg=f"Activity list:\n{activity_manager}\nTestPattern:\n{test_pattern}")
 
-    def programmed_activity_queue(self, ids=None):
-        self.setup_activity_manager()
-        if ids is None:
-            ids = slice(None)
+        self.assertTrue((activity_manager.activity_list.activity_values[:, :, :] == 0).all())
 
-        activity_specs = ActivityDescriptorSpecs(3, 5, 50, 0, 0, 0)
-        self.activity_manager.planned_activities[ids].append(activity_specs)
-        # check the activity is not popped before 5 steps:
-        self.walk_manager(4)
-        self.assertTrue((self.activity_list.activity_values[ids, :, 1:] == 0).all(),
-                        msg=f"{self.activity_list.activity_values}")
-        # test popping queue
-        self.walk_manager(4)
-        self.assertTrue((self.activity_list.activity_values[ids, :, 3] == [5, 50, 2, 2, 1, 0]).all(),
-                        msg=f"{self.activity_list.activity_values}")
-        self.assertTrue((self.activity_list.activity_values[ids, :, 0] == [0, 0, 0, 6, 0, 0]).all(),
-                        msg=f"{self.activity_list.activity_values}")
+        # test tha ActivityList values and ActivityPrimitive values are in sync
+        activity_manager.activity_list.activity_values[np.ix_([4, 5, 6], [ActivityProperties.start], [0, 2])] = 3
+        status_1 = activity_manager.activity_list.activities[0].get_start()
+        test_1 = activity_manager.activity_list.activity_values[:, ActivityProperties.start, 0]
 
-    def test_consuming_programmed_activities(self):
-        self.setup_activity_manager()
-        ids = slice(3, 6)
-        # Discard mode
-        for act_id in range(2, 5):
-            activity_specs = ActivityDescriptorSpecs(act_id, 0, 0, 0, 0, 0)
-            self.activity_manager.planned_activities[ids].append(activity_specs)
+        status_2 = activity_manager.activity_list.activities[2].get_start()
+        test_2 = activity_manager.activity_list.activity_values[:, ActivityProperties.start, 2]
 
-        for i in range(2, 10):
-            self.walk_manager(1)
-            if i > 4:
-                i = 4
+        self.assertListEqual(status_1.tolist(), test_1.tolist())
+        self.assertListEqual(status_2.tolist(), test_2.tolist())
 
-            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
-            self.assertListEqual([0] * 10, list(self.activity_manager.interrupted_activities.num_items))
+    def test_stage_activities(self):
+        activity_manager, test_pattern = self.init_list_and_test()
+        activity_specs = ActivityDescriptorSpecs(act_idx=1, start=0, duration=50, location_ix=-1)
+        ids = [0, 1, 2, 3]
+        activity_manager.stage_activity(activity_specs.specifications, ids)
 
-        # Interruptable
-        for act_id in range(2, 5):
-            activity_specs = ActivityDescriptorSpecs(act_id, 0, 15, 0, 0, 0)
-            self.activity_manager.planned_activities[ids].append(activity_specs)
+        expected = activity_specs.specifications.tolist() * len(ids)
+        staged = [list(act) for act in activity_manager.current_descriptors[ids]]
 
-        for i in range(2, 10):
-            self.walk_manager(1)
-            if i > 4:
-                i = 4
+        self.assertListEqual(expected, staged)
 
-            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
-            expected = [0] * 3 + [i-2] * 3 + [0] * 4
-            self.assertListEqual(expected, list(self.activity_manager.interrupted_activities.num_items))
+        no_ids = list(range(4, len(self.population)))
+        staged = activity_manager.current_descriptors[no_ids]
+        self.assertTrue((staged == -1).all(), msg=f"{staged}")
 
-        # Check that the interrupted  queue waits for activities to finish before proceeding
-        for i in range(4, 1, -1):
-            if i == 4:
-                self.walk_manager(1)
-            else:
-                self.walk_manager(14)
+    def test_stage_with_blocked_activities(self):
+        activity_manager, test_pattern = self.init_list_and_test()
 
-            self.assertEqual([i] * 3, list(self.activity_manager.current_activity[ids]))
-            expected = [0] * 3 + [i - 2] * 3 + [0] * 4
-            self.assertListEqual(expected, list(self.activity_manager.interrupted_activities.num_items))
+        # Blocking Activity ID 1
+        activity_manager.activity_list.activity_values[np.ix_([0, 1], [ActivityProperties.blocked_for], [1])] = 60
 
-        # Ensure default activity is active
-        self.walk_manager(14)
+        activity_specs = ActivityDescriptorSpecs(act_idx=1, start=0, duration=50, location_ix=-1)
+        ids = [0, 1, 2, 3]
+        staged = activity_manager.stage_activity(activity_specs.specifications, ids)
+        expected = [False, False, True, True]
 
-        # Un interruptable
-        for act_id in range(2, 5):
-            activity_specs = ActivityDescriptorSpecs(act_id, 0, 15, block_for=1)
-            self.activity_manager.planned_activities[ids].append(activity_specs)
+        self.assertListEqual(expected, staged.tolist())
 
-        for i in range(45):
-            self.walk_manager(1)
-            self.assertEqual([i // 15 + 2] * 3, list(self.activity_manager.current_activity[ids]),
-                             msg=f"Failed at {i}")
-            self.assertListEqual([0] * 10, list(self.activity_manager.interrupted_activities.num_items))
+    def test_start(self):
+        activity_list, test_pattern, population = self.init_population_list_and_test()
 
-    def test_current_activity_update(self):
-        self.setup_activity_manager()
-        self.walk_manager(4)
-        elapsed_ix = self.activity_list.elapsed_ix
-        accumulated_ix = self.activity_list.accumulated_ix
-        self.assertTrue((self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix], 0] == 4).all(),
-                        msg=f"{self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix], 0]}")
+        # Test that un-staged activities raise ValueError
+        self.assertRaises(ValueError, activity_list.start_activities, [5, 6])
 
-        self.assertTrue((self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix], 1:] == 0).all(),
-                        msg=f"{self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix], 1:]}")
+        global_time.set_sim_time(5)
+        ids = [5, 6]
+        activity_specs = ActivityDescriptorSpecs(2, 0, 50, 0, 60, 0)
+        activity_list.stage_activity(activity_specs.specifications, ids)
+        activity_list.start_activities(ids)
+        start_status = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.start, 2]))
+        in_progress = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.in_progress, 2]))
+        test_start = np.array([0] * self.population_size)
+        test_start[ids] = 5
+        self.assertTrue((start_status == test_start).all(),
+                        msg=f"Start times:\n{start_status}\nTestPattern:\n{test_start}")
 
-        in_progress_ix = self.activity_list.in_progress_ix
-        self.assertTrue((self.activity_list.activity_values[:, [in_progress_ix], 0] == 1).all(),
-                        msg=f"{self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix, in_progress_ix], 0]}")
+        start_status = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.start, [0, 1]]))
+        self.assertTrue((start_status == 0).all(),
+                        msg=f"Start times:\n{start_status}\nTestPattern: == 0")
 
-        # Test update of blocking_for values
-        blocked_for_ix = self.activity_list.blocked_for_ix
-        self.activity_list.activity_values[:, blocked_for_ix, 4] = 60
-        self.walk_manager(10)
-        self.assertTrue((self.activity_list.activity_values[:, [blocked_for_ix], 4] == 50).all(),
-                        msg=f"{self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix, blocked_for_ix], 4]}")
+        test_in_progress = np.zeros_like(in_progress)
+        test_in_progress[ids] = 1
+        self.assertTrue((in_progress == test_in_progress).all(),
+                        msg=f"In progress status:\n{in_progress}\nTestPattern:\n{test_in_progress}")
 
-        self.walk_manager(60)
-        self.assertTrue((self.activity_list.activity_values[:, [blocked_for_ix], 4] == 0).all(),
-                        msg=f"{self.activity_list.activity_values[:, [elapsed_ix, accumulated_ix, blocked_for_ix], 4]}")
+        # Test that descriptor is reset.
+        self.assertTrue((activity_list.current_descriptors == -1).all(),
+                        msg=f"Current Descriptors are not properly reset. {activity_list.current_descriptors}")
 
-    def test_programmed_activities(self):
-        self.programmed_activity_queue()
+    def test_update_time(self):
+        activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-    def test_programmed_activities_view(self):
-        self.programmed_activity_queue(slice(2, 4))
+        ids = [3, 5, 6]
+        activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 60, 0)
+        activity_manager.stage_activity(activity_specs.specifications, ids)
+        activity_manager.start_activities(ids)
 
-    def test_programmed_activities_view_ids(self):
-        self.programmed_activity_queue([2, 4])
+        for i in range(5):
+            global_time.set_sim_time(i)
+            activity_manager.pre_step(i)
+            activity_manager.step(i)
+            activity_manager.post_step(i)
 
-    def test_blocked_activity(self):
-        self.setup_activity_manager()
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, 0, 60, 0)
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(30)
+        elapsed_status = np.array(list(map(lambda x: x.get_elapsed(), activity_manager.activity_list.activities)))
+        accumulated_status = np.array(list(map(lambda x: x.get_accumulated(), activity_manager.activity_list.activities)))
+        test_start = np.zeros_like(elapsed_status)
+        test_start[[0], ids] = 5
+        self.assertTrue((elapsed_status == test_start).all(),
+                        msg=f"Elapsed times:\n{elapsed_status}\nTestPattern:\n{test_start}")
 
-        blocked_for_ix = self.activity_list.blocked_for_ix
-        self.assertTrue((self.activity_list.activity_values[:, [blocked_for_ix], 1] == 60).all(),
-                        msg=f"{self.activity_list.activity_values[:, [blocked_for_ix], 1]}")
-
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(60 + 50)
-        self.assertTrue((self.activity_list.activity_values[:, [blocked_for_ix], 1] == 0).all(),
-                        msg=f"{self.activity_list.activity_values[:, [blocked_for_ix], 1]}")
+        self.assertTrue((accumulated_status == test_start).all(),
+                        msg=f"Accumulated times:\n{accumulated_status}\nTestPattern:\n{test_start}")
 
     def test_stop_activities_with_duration(self):
-        self.setup_activity_manager()
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, 0, 0, 0)
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(80)
+        activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-        self.assertTrue((self.activity_list.activity_values[:, :, 1] == [0, 0, 0, 50, 0, 0]).all(),
-                        msg=f"{self.activity_list.activity_values[:, :, 1]}")
+        ids = [3, 5, 6]
+        activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 0, 0)
+        activity_manager.stage_activity(activity_specs.specifications, ids)
+        activity_manager.start_activities(ids)
 
-        self.assertTrue((self.activity_list.activity_values[:, :, 0] == [50, 0, 29, 30, 1, 0]).all(),
-                        msg=f"{self.activity_list.activity_values[:, :, 0]}")
+        for i in range(60):
+            activity_manager.step(i)
+            activity_manager.pre_step(i)
+            activity_manager.step(i)
+            activity_manager.post_step(i)
 
-    def test_stop_activities_with_duration_and_different_default_activity(self):
-        self.setup_activity_manager()
-        self.activity_manager.current_activity[3:6] = 2
-        self.activity_manager.current_default_activity[3:6] = 2
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, 0, 0, 0)
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(80)
+        elapsed_status = np.array(list(map(lambda x: x.get_elapsed(), activity_manager.activity_list.activities)))
+        accumulated_status = np.array(list(map(lambda x: x.get_accumulated(), activity_manager.activity_list.activities)))
+        in_progress = np.array(list(map(lambda x: x.get_in_progress(), activity_manager.activity_list.activities)))
+        test_start = np.zeros_like(elapsed_status)
+        test_start[[0], ids] = 50
 
-        self.assertTrue((self.activity_list.activity_values[:, :, 1] == [0, 0, 0, 50, 0, 0]).all(),
-                        msg=f"{self.activity_list.activity_values[:, :, 1]}")
+        self.assertTrue((elapsed_status == 0).all(),
+                        msg=f"Elapsed times:\n{elapsed_status}\nTestPattern: == 0")
 
-        none_activity_ids = np.ones_like(self.population.index, dtype=bool)
-        none_activity_ids[3:6] = False
-        self.assertTrue((self.activity_list.activity_values[none_activity_ids, :, 0] == [50, 0, 29, 30, 1, 0]).all(),
-                        msg=f"{self.activity_list.activity_values[:, :, 0]}")
-        self.assertTrue((self.activity_list.activity_values[~none_activity_ids, :, 2] == [50, 0, 29, 30, 1, 0]).all(),
-                        msg=f"{self.activity_list.activity_values[:, :, 2]}")
+        self.assertTrue((in_progress == 0).all(),
+                        msg=f"Elapsed times:\n{in_progress}\nTestPattern: == 0")
 
-    def test_pause_and_resume_activity(self):
-        self.setup_activity_manager()
-        # Star and activity with duration
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, 0, 0, 0)
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(30)
+        self.assertTrue((accumulated_status == test_start).all(),
+                        msg=f"Accumulated times:\n{accumulated_status}\nTestPattern:\n{test_start}")
 
-        # Queue another activity with duration
-        activity_specs = ActivityDescriptorSpecs(3, 0, 50, 0, 0, 0)
-        self.activity_manager.planned_activities.append(activity_specs)
-        self.walk_manager(20)
+    def test_stop(self):
+        activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-        # Check that everything matches
-        self.assertTrue((self.activity_list.current_activity == 3).all())
-        self.assertTrue((self.activity_manager.interrupted_activities.queue[:, :, 0] ==
-                         ActivityDescriptorSpecs(1, 0, 20).specifications).all(),
-                        msg=f"{self.activity_manager.interrupted_activities.queue[:, :, 0]}")
+        ids = [3, 5, 6]
+        activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 60, 0)
+        activity_manager.stage_activity(activity_specs.specifications, ids)
+        activity_manager.start_activities(ids)
+        for i in range(5):
+            global_time.set_sim_time(i)
+            activity_manager.pre_step(i)
+            activity_manager.step(i)
+            activity_manager.post_step(i)
 
-        self.walk_manager(40)
-        # Check that everything resumed correctly
-        self.assertTrue((self.activity_list.current_activity == 1).all(),
-                        msg=f"Expecting current activity "
-                            f"to be 1 not {self.activity_list.current_activity}")
-        self.assertTrue((self.activity_manager.interrupted_activities.num_items == 0).all(),
-                        msg=f"{self.activity_manager.interrupted_activities.num_items}")
+        global_time.set_sim_time(i + 1)
+        activity_manager.stop_activities(i + 1, ids)
 
-    def test_check_activity_resource_availability(self):
-        self.setup_activity_mgr_with_world()
+        start_status = np.array(list(map(lambda x: x.get_start(), activity_manager.activity_list.activities)))
+        in_progress = np.array(list(map(lambda x: x.get_in_progress(), activity_manager.activity_list.activities)))
+        elapsed_status = np.array(list(map(lambda x: x.get_elapsed(), activity_manager.activity_list.activities)))
+        accumulated_status = np.array(list(map(lambda x: x.get_accumulated(), activity_manager.activity_list.activities)))
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].id)
-        self.activity_manager.planned_activities[3:6].append(activity_specs)
-        occupied_resources = self.activity_manager.check_activity_resource_availability(slice(3, 6),
-                                                                                        self.activity_manager.planned_activities)
-        expected = [False] * 3
-        self.assertListEqual(list(occupied_resources), expected)
+        test_start = [0] * self.population_size
+        self.assertTrue((start_status == test_start).all(),
+                        msg=f"Start times:\n{start_status}\nTestPattern:\n{test_start}")
 
-        # Test with blocking location It should be available for the first user, but blocked for everyone else
-        self.walk_manager(60)
-        # Block the living room
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                 blocks_location=True)
+        test_start = [0] * self.population_size
+        self.assertTrue((in_progress == test_start).all(),
+                        msg=f"In progress status:\n{in_progress}\nTestPattern:\n{test_start}")
 
-        self.activity_manager.planned_activities[3:6].append(activity_specs)
-        self.activity_manager.planned_activities[3:6].append(activity_specs)
-        occupied_resources = self.activity_manager.check_activity_resource_availability(
-            slice(3, 6),
-            self.activity_manager.planned_activities)
+        test_start = [0] * self.population_size
+        self.assertTrue((elapsed_status == test_start).all(),
+                        msg=f"Elapsed times:\n{elapsed_status}\nTestPattern:\n{test_start}")
 
-        expected = [False, True, True]
+        test_start = np.zeros_like(accumulated_status)
+        test_start[[0], ids] = 5
+        self.assertTrue((accumulated_status == test_start).all(),
+                        msg=f"Accumulated times:\n{accumulated_status}\nTestPattern:\n{test_start}")
 
-        # Test that the location is effectively blocked for everyone after
-        self.assertListEqual(list(occupied_resources), expected)
+    def test_start_with_relocation(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-        # Test that only the blocking agent is at location
-        expected = self.activity_manager.current_location_id
-        expected[3] = self.w.universe.regions[0].regions[0].id
-        expected[4:6] = self.w.universe.regions[0].get_entrance_sub_region().id
-        self.assertListEqual(list(expected), list(self.activity_manager.current_location_id))
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
 
-        self.walk_manager(2)
-        activity_specs = ActivityDescriptorSpecs(3, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                 blocks_location=True)
-        activity_specs2 = ActivityDescriptorSpecs(2, 0, 50, location_id=self.w.universe.regions[0].regions[0].id)
-        self.activity_manager.planned_activities[3:6].append(activity_specs)
-        self.activity_manager.planned_activities[6:9].append(activity_specs2)
-        occupied_resources = self.activity_manager.check_activity_resource_availability(
-            slice(3, 9),
-            self.activity_manager.planned_activities)
+        # Test that the agents do not move
+        ids = [3, 5, 6]
+        locations = self.population.location.copy()
+        activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 0, location_ix=0)
+        activity_list.stage_activity(activity_specs.specifications, ids)
+        activity_list.start_activities(ids)
+        locations_after_start = self.population.location
 
-        expected = [True] * 6
-        self.assertListEqual(list(occupied_resources), expected)
+        self.assertListEqual(locations.tolist(), locations_after_start.tolist())
 
-    def test_check_activity_resource_availability_blocking_parent(self):
-        self.setup_activity_mgr_with_world()
+        # Test correct in_progress status
+        in_progress = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
+        test_start = np.zeros_like(in_progress)
+        test_start[ids, 0] = 1
+        self.assertTrue((in_progress == test_start).all(),
+                        msg=f"In progress status:\n{in_progress}\nTestPattern:\n{test_start}")
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[1].regions[0].id,
-                                                 blocks_parent_location=True)
-        activity_specs1 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[1].regions[1].id,
-                                                  blocks_parent_location=True)
-        activity_specs2 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                  blocks_parent_location=True)
-        activity_specs3 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].id)
-        self.activity_manager.planned_activities[0].append(activity_specs)
-        self.activity_manager.planned_activities[1].append(activity_specs1)
-        self.activity_manager.planned_activities[3:6].append(activity_specs2)
-        self.activity_manager.planned_activities[6:9].append(activity_specs3)
+        # Test that agents moved
+        activity_specs = ActivityDescriptorSpecs(2, 0, 0, 0, 0, location_ix=world.universe.regions[0].regions[2].index)
+        activity_list.stage_activity(activity_specs.specifications, ids)
+        activity_list.start_activities(ids)
+        expected_locations = locations.copy()
+        expected_locations[ids] = world.universe.regions[0].regions[2]
+        self.assertListEqual(self.population.location.tolist(), expected_locations.tolist())
 
-        selector = self.activity_manager.planned_activities.num_items > 0
-        occupied_resources = self.activity_manager.check_activity_resource_availability(
-            selector,
-            self.activity_manager.planned_activities)
-        expected = [False, True, False] + [True] * 5
-        self.assertListEqual(list(occupied_resources), expected)
+        # Test correct in_progress status
+        in_progress = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
+        test_start = np.zeros_like(in_progress)
+        test_start[ids, 2] = 1
+        self.assertTrue((in_progress == test_start).all(),
+                        msg=f"In progress status:\n{in_progress}\nTestPattern:\n{test_start}")
 
-    def test_motion_to_correct_location(self):
-        self.setup_activity_mgr_with_world()
+    def test_region_unblocking(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[1].regions[0].id)
-        self.activity_manager.planned_activities[:4].append(activity_specs)
-        self.walk_manager(10)
-        self.assertEqual(self.w.universe.regions[1].regions[0].id, self.population.location[0].id)
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
 
-    def test_blocked_location(self):
-        self.setup_activity_mgr_with_world()
+        # Block locations
+        ids = [3, 5, 6]
+        regions_idx = np.unique(np.searchsorted(world.universe.region_index[:, 0],
+                                                [r.id for r in self.population.location[ids]]))
+        world.universe.block_locations(regions_idx, True)
+        test_pattern = world.universe.blocked_locations.copy()
+        occupants_reg3 = world.universe.region_index[regions_idx[0], 2].population.index
+        occupants_reg4 = world.universe.region_index[regions_idx[1], 2].population.index
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[1].regions[0].id,
-                                                 blocks_location=True)
-        activity_specs2 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                  blocks_location=True)
-        activity_specs3 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[2].id,
-                                                  blocks_location=True)
-        self.activity_manager.planned_activities[0].append(activity_specs)
-        self.activity_manager.planned_activities[1].append(activity_specs2)
-        self.activity_manager.planned_activities[2].append(activity_specs3)
-        self.walk_manager(20)
+        # Test that moving agents does not unblock the space if at least one agent remains
+        relocator.move_agents(ids[:1],  world.universe.regions[2])
+        self.assertListEqual(world.universe.blocked_locations.tolist(), test_pattern.tolist())
 
-        # Create baseline
-        baseline_blocked_ids = [
-            self.w.universe.regions[0].regions[0].id,
-            self.w.universe.regions[1].regions[0].id,
-            self.w.universe.regions[2].id
-            ]
+        # Unblock the first corridor by moving everyone out.
+        relocator.move_agents(occupants_reg3, world.universe.regions[2])
+        test_pattern[regions_idx[0]] = False
+        self.assertListEqual(world.universe.blocked_locations.tolist(), test_pattern.tolist())
 
-        # Prepare test list
-        test_blocked_ids = list(self.activity_manager.location_ids[self.activity_manager.location_blocked, 0])
-        self.assertListEqual(baseline_blocked_ids, test_blocked_ids)
+        # Test stopping activity of multiple agents should not unblock the space
+        activity_list.stop_activities(0, occupants_reg4)
+        self.assertListEqual(world.universe.blocked_locations.tolist(), test_pattern.tolist())
 
-    def test_activity_ends_and_unblocks_location_and_parent(self):
-        self.setup_activity_mgr_with_world()
+        # Stopping activity, when there is only one agent remaining, unblocks the space
+        relocator.move_agents(occupants_reg4[:-1], world.universe.regions[2])
+        activity_list.stop_activities(0, occupants_reg4)
+        test_pattern[regions_idx[1]] = False
+        self.assertListEqual(world.universe.blocked_locations.tolist(), test_pattern.tolist())
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[1].regions[0].id,
-                                                 blocks_location=True, blocks_parent_location=True)
-        activity_specs2 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                  blocks_location=True, blocks_parent_location=True)
-        activity_specs3 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[2].id,
-                                                  blocks_location=True)
-        self.activity_manager.planned_activities[0].append(activity_specs)
-        self.activity_manager.planned_activities[1].append(activity_specs2)
-        self.activity_manager.planned_activities[2].append(activity_specs3)
-        self.walk_manager(10)
+    def test_relocation_callback(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-        self.assertEqual(19, self.activity_manager.location_blocked.sum())
-        self.walk_manager(60)
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+        activity_descriptor = ActivityDescriptorSpecs(2)
+        activity_list.stage_activity(activity_descriptor.specifications, [2])
+        activity_list.start_activities([2])
 
-        # Blocking has undesired side-effects. # TODO: Implement locking parents correctly
-        warn("Blocking side effect not corrected.")
-        self.assertEqual(2, self.activity_manager.location_blocked.sum())
+        # Run for a bit
+        for i in range(5):
+            global_time.set_sim_time(i)
+            activity_list.pre_step(i)
+            activity_list.step(i)
+            activity_list.post_step(i)
 
-    def test_postpone_activity(self):
-        self.setup_activity_mgr_with_world()
+        self.assertTrue(activity_list.current_activity[2] == 2)
+        self.assertTrue((activity_list.current_descriptors[2] == -1).all(),
+                        msg=f"{activity_list.current_descriptors[2]}")
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[0].id,
-                                                 blocks_location=True)
+        # Move 2 to new location, check that no activity is ongoing
+        location = world.universe.regions[0].regions[3]
+        relocator.move_agents([2], location)
+        self.assertTrue(activity_list.current_activity[2] == -1,
+                        msg=f"{activity_list.current_activity[2]}")
 
-        self.activity_manager.planned_activities[3:6].append(activity_specs)
-        self.walk_manager(20)
-        self.assertEqual(1, self.activity_manager.location_blocked.sum())
+    def test_block_location_with_shared_blocking(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-        self.activity_manager.planned_activities[7].append(activity_specs)
-        self.assertListEqual(list(self.activity_manager.planned_activities.queue[7, :, 0]),
-                             list(activity_specs.specifications.ravel()))
-        self.walk_manager(20)
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[3, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[4, :, 0]),
-                             list(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[5, :, 0]),
-                             list(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[7, :, 0]),
-                             list(activity_specs.specifications.ravel()))
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+        location = world.universe.regions[0].regions[3]
+        activity_specs = ActivityDescriptorSpecs(act_idx=1, start=0, duration=50, location_ix=location.index,
+                                                 blocks_location=TypesOfLocationBlocking.shared)
 
-        test_list = [-1] * len(self.population)
-        test_list[7] = 1
-        test_list[4:6] = [1] * 2
-        self.assertListEqual(list(self.activity_manager.postponed_activities.act_idx), test_list)
+        ids = [0, 1, 2, 3]
+        activity_list.stage_activity(activity_specs.specifications, ids)
 
-        self.walk_manager(20)
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[3, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[4, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[5, :, 0]),
-                             list(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[7, :, 0]),
-                             list(activity_specs.specifications.ravel()))
+        expected = activity_specs.specifications.tolist() * len(ids)
+        staged = [list(act) for act in activity_list.current_descriptors[ids]]
 
-        self.walk_manager(50)
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[3, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[4, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[5, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[7, :, 0]),
-                             list(activity_specs.specifications.ravel()))
+        self.assertListEqual(expected, staged)
 
-        self.walk_manager(50)
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[3, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[4, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[5, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
-        self.assertListEqual(list(self.activity_manager.postponed_activities.queue[7, :, 0]),
-                             [-1] * len(activity_specs.specifications.ravel()))
+        no_ids = list(range(4, len(self.population)))
+        staged = activity_list.current_descriptors[no_ids]
+        self.assertTrue((staged == -1).all(), msg=f"{staged}")
 
-    def setup_activity_mgr_with_world(self):
-        self.setup_world()
-        self.setup_activity_manager()
-        self.activity_manager.world = self.w.universe
-        self.activity_manager.register_available_locations()
+    def test_location_blocking_with_wait_blocking(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-    def test_consume_triggered(self):
-        self.setup_activity_mgr_with_world()
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+        location = world.universe.regions[0].regions[3]
+        activity_descriptor = ActivityDescriptorSpecs(2, location_ix=location.index,
+                                                      blocks_location=TypesOfLocationBlocking.wait)
 
-        activity_specs = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[1].id)
-        self.activity_manager.triggered_activities[0].append(activity_specs)
-        self.walk_manager(20)
+        relocator.move_agents([1], location)
+        activity_list.stage_activity(activity_descriptor.specifications, [2])
+        activity_list.start_activities([2])
 
-        expected_activity = [0] * len(self.population)
-        expected_activity[0] = 1
-        current_activity = list(self.activity_manager.current_activity)
-        self.assertListEqual(expected_activity, current_activity)
+        # Test the activity is still in the stage area
+        self.assertFalse((activity_list.current_descriptors[2] == -1).all())
+        relocator.move_agents([1], location.parent)
 
-        self.walk_manager(40)
-        expected_activity[0] = 0
-        current_activity = list(self.activity_manager.current_activity)
-        self.assertListEqual(expected_activity, current_activity)
+        # Move the agent out of the way
+        activity_list.start_activities([2])
+        self.assertTrue((activity_list.current_descriptors[2] == -1).all())
 
-    def test_consume_priority(self):
-        self.setup_activity_mgr_with_world()
+        # Test the activity is started
+        self.assertTrue(activity_list.current_activity[2] == 2)
 
-        activity_specs1 = ActivityDescriptorSpecs(1, 0, 50, location_id=self.w.universe.regions[0].regions[1].id)
-        activity_specs2 = ActivityDescriptorSpecs(2, 0, 50, block_for=250, location_id=self.w.universe.regions[
-            0].regions[1].id)
-        self.activity_manager.planned_activities[0].append(activity_specs1)
-        self.activity_manager.triggered_activities[0].append(activity_specs2)
-        self.walk_manager(20)
+    @skip("Not implemented yet")
+    def test_block_location_with_rejecting_blocking(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
 
-        expected_activity = [0] * len(self.population)
-        expected_activity[0] = 2
-        current_activity = list(self.activity_manager.current_activity)
-        self.assertListEqual(expected_activity, current_activity)
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+        location = world.universe.regions[0].regions[3]
+        activity_descriptor = ActivityDescriptorSpecs(2, location_ix=location.index,
+                                                      blocks_location=TypesOfLocationBlocking.rejecting)
 
-        self.walk_manager(40)
-        expected_activity[0] = 1
-        current_activity = list(self.activity_manager.current_activity)
-        self.assertListEqual(expected_activity, current_activity)
+        # Move every one to location
+        relocator.move_agents([0, 1, 2, 3, 4], location)
 
-        self.walk_manager(60)
-        expected_activity[0] = 0
-        current_activity = list(self.activity_manager.current_activity)
-        self.assertListEqual(expected_activity, current_activity)
+        # Block and stage activity
+        activity_list.stage_activity(activity_descriptor.specifications, [2])
+        activity_list.start_activities([2])
+
+        # Test the activity is started
+        self.assertTrue(activity_list.current_activity[2] == 2)
+
+        # Test that the activity is in location
+        self.assertTrue(self.population[2].location == location)
+
+        # Test that everyone else is in the adjacent space.
+        adjacent_space = world.universe.regions[0].regions[2]
+        self.assertTrue(self.population[[0, 1, 3, 4]].location == adjacent_space)
+
+    @skip("Not implemented yet")
+    def test_block_parent(self):
+        self.assertTrue(False)
+
+    def test_activity_diary(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
+
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+        activity_list.post_init("/tmp/i2mb_test_suite")
+
+        test_history_file = "/tmp/i2mb_test_suite_activity_history.csv"
+        self.assertTrue(os.path.exists(test_history_file),
+                        msg="Test history file does not exist")
+
+        location = world.universe.regions[0].regions[3]
+        durations = [10, 15, 20, 25]
+        activity_descriptor = ActivityDescriptorSpecs(2, duration=10, location_ix=location.index,
+                                                      blocks_location=TypesOfLocationBlocking.rejecting, size=4)
+
+        activity_descriptor.specifications[:, ActivityDescriptorProperties.duration] = durations
+
+        activity_list.stage_activity(activity_descriptor.specifications, [0, 1, 2, 3])
+        activity_list.start_staged_activities()
+
+        for i in range(30):
+            global_time.set_sim_time(i)
+            activity_list.pre_step(i)
+            activity_list.step(i)
+            activity_list.post_step(i)
+
+        # Trigger file closing
+        del activity_list
+
+        with open(test_history_file) as thf:
+            for lix, line in enumerate(thf.readlines()):
+                if lix == 0:
+                    self.assertListEqual(ActivityManager.file_headers, line.split(","))
+                    continue
+
+                test_line = [f"{lix - 1}", "Work", "0", f"{durations[lix -1]}", type(location).__name__]
+                self.assertListEqual(test_line, line.split(","))
+
+    def test_activity_descriptors_match_location(self):
+        world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+                             sim_duration=global_time.make_time(day=4), no_gui=True)
+
+        relocator = world.relocator
+        activity_list, _ = self.init_list_and_test(relocator)
+
+        for r in world.universe.list_all_regions():
+            for act_descriptor in r.local_activities:
+                act_type = act_descriptor.activity_class
+                self.assertNotEqual(act_type.id, -1)
+
+    def test_starting_with_mixed_none_and_specific_location(self):
+        # Current relocation test does this:  ids[relocated_ids | ~update_current | same_location]
+        self.fail("You need to implement this test")
+
+    def test_starting_with_mixed_specific_location_and_current_location(self):
+        # Current relocation test does this: ids[relocated_ids | ~update_current | same_location]
+        self.fail("You need to implement this test")
+
+
+
