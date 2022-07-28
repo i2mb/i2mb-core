@@ -124,3 +124,25 @@ class BaseRoom(CompositeWorld):
                                               f.origin[1] - offset[(int(f.rotation / 90)) % 4]]
             self.furniture_upper[id - 1][0] = f.origin[0] + offset[(int(f.rotation / 90) + 3) % 4]
             self.furniture_upper[id - 1][1] = f.origin[1] + offset[(int(f.rotation / 90) + 2) % 4]
+
+    def sit_agents(self, idx):
+        bool_idx = self.population.find_indexes(idx)
+        required_seats = len(idx)
+        available_seats = (self.seat_assignment == -1)
+        standing = required_seats - available_seats.sum()
+        seats_to_use = required_seats
+        if required_seats > available_seats.sum():
+            seats_to_use = available_seats.sum()
+
+        if seats_to_use > 0:
+            choose_seats = np.where(available_seats)[0][:seats_to_use]
+            self.seat_assignment[choose_seats] = idx[:seats_to_use]
+            choose_idx = np.where(bool_idx)[0][:seats_to_use]
+            self.population.position[choose_idx] = self.available_seats[choose_seats]
+
+        if standing > 0:
+            choose_idx = np.where(bool_idx)[0][seats_to_use:]
+            assert len(choose_idx) == standing, f"{choose_idx}, {standing}, {idx}, {sorted(self.seat_assignment)}"
+            self.population.position[choose_idx] = np.random.random((standing, 2)) * self.dims
+            if hasattr(self.population, "motion_mask"):
+                self.population.motion_mask[choose_idx] = True

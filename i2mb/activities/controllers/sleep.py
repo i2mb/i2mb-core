@@ -1,18 +1,20 @@
 import numpy as np
 
 from i2mb import Model
+from i2mb.activities import ActivityDescriptorProperties
 from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.atomic_activities import Sleep
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
 from i2mb.engine.agents import AgentList
-from i2mb.utils import global_time
+from i2mb.utils import global_time, time
 from i2mb.worlds import World
 
 
 class SleepBehaviourController(Model):
-    def __init__(self, population: AgentList, activity_manager: ActivityManager, world: World,  sleep_duration,
-                 sleep_midpoint):
+    def __init__(self, population: AgentList, activity_manager: ActivityManager, world: World, sleep_duration,
+                 sleep_midpoint, minimum_up_time=3):
 
+        super().__init__()
         self.population = population
         self.activity_manager = activity_manager
         self.world = world
@@ -20,9 +22,14 @@ class SleepBehaviourController(Model):
         self.sleep_duration = sleep_duration
 
         self.sleep_activity = Sleep(self.population)
-        self.activity_manager.activities.register(self.sleep_activity)
+        self.activity_manager.register_activity(self.sleep_activity)
         self.last_wakeup_time = self.sleep_activity.last_wakeup_time
         self.plan_dispatched = np.zeros(len(self.population), dtype=bool)
+        self.has_plan = np.zeros(len(self.population), dtype=bool)
+        self.register_location_trigger_actions()
+        self.register_on_action_stop()
+        self.register_on_action_start()
+        self.minimum_up_time = minimum_up_time
 
         self.sleep_profiles = None
         self.create_sleep_profiles()
@@ -30,12 +37,9 @@ class SleepBehaviourController(Model):
     def step(self, t):
         self.clear_sleep_activity(t)
         self.update_sleep_schedule(t)
-        self.make_people_sleepy(t)
-        return
 
     def update_sleep_schedule(self, t):
-        has_schedule = self.sleep_activity.has_plan
-        new_schedule = ~has_schedule
+        new_schedule = ~self.has_plan
         if new_schedule.any():
             sleep_midpoints = self.sleep_midpoint((new_schedule.sum()))
             sleep_durations = self.sleep_duration((new_schedule.sum()))
@@ -46,25 +50,31 @@ class SleepBehaviourController(Model):
                 start -= global_time.time_scalar
                 sleep_durations += start
 
-            self.sleep_profiles.specifications[new_schedule, 1] = start
-            self.sleep_profiles.specifications[new_schedule, 2] = sleep_durations
+            self.sleep_profiles.specifications[new_schedule, ActivityDescriptorProperties.start] = start
+            self.sleep_profiles.specifications[new_schedule, ActivityDescriptorProperties.duration] = sleep_durations
 
-            # # Make un interruptable
-            self.sleep_profiles.specifications[new_schedule, 4] = 15
-            self.sleep_activity.has_plan[new_schedule] = True
+            # # Make un interruptable by adding a blocking_for 15 value
+            self.sleep_profiles.specifications[new_schedule, ActivityDescriptorProperties.block_for] = self.minimum_up_time
+            self.has_plan[new_schedule] = True
             self.plan_dispatched[new_schedule] = False
 
-    def make_people_sleepy(self, t):
-        make_sleepy = (self.sleep_profiles.specifications[:, 1] <= t)
+    def make_people_sleepy(self, region):
+        make_sleepy = (self.sleep_profiles.specifications[:, ActivityDescriptorProperties.start] <= time())
         make_sleepy &= ~self.plan_dispatched
+        make_sleepy &= (self.population.home == region).ravel()
+        make_sleepy &= self.population.at_home.ravel()
         if make_sleepy.any():
+            idx_bool = region.population.find_indexes(self.population.index[make_sleepy])
+            ixs = np.arange(len(idx_bool), dtype=int)[idx_bool]
+            bedrooms = region.agent_bedroom[ixs]
             activity_specs = self.sleep_profiles.specifications[make_sleepy, :]
-            self.activity_manager.triggered_activities[make_sleepy].append(activity_specs)
-            self.plan_dispatched[make_sleepy] = True
+
+            activity_specs[:, ActivityDescriptorProperties.location_ix] = [br.index for br in bedrooms]
+            self.activity_manager.stage_activity(activity_specs, self.population.index[make_sleepy])
 
     def create_sleep_profiles(self):
         if self.sleep_profiles is None:
-            act_idx = self.activity_manager.activities.activity_types.index(type(self.sleep_activity))
+            act_idx = self.activity_manager.activity_list.activity_types.index(type(self.sleep_activity))
             self.sleep_profiles = ActivityDescriptorSpecs(act_idx=act_idx,
                                                           block_for=global_time.make_time(hour=3),
                                                           size=len(self.population))
@@ -80,7 +90,27 @@ class SleepBehaviourController(Model):
         sleep_walkers = self.activity_manager.current_activity == self.sleep_activity.id
         sleep_walkers &= ~self.sleep_activity.sleep.ravel()
         if sleep_walkers.any():
-            self.activity_manager.stop_activities(sleep_walkers, t)
+            self.activity_manager.stop_activities(t, self.population.index[sleep_walkers])
+
+    def reset_sleep_on_stop(self, act_id, t, stop_selector):
+        self.plan_dispatched[stop_selector] = False
+        self.has_plan[stop_selector] = False
+
+    def marked_dispatched_plans(self, act_id, t, stop_selector):
+        self.plan_dispatched[stop_selector] = True
+
+    def register_location_trigger_actions(self):
+        for r in self.world.list_all_regions():
+            if hasattr(r, "agent_bedroom"):
+                self.activity_manager.location_activity_handler.register_handler_action(r.index,
+                                                                                        self.make_people_sleepy)
+
+    def register_on_action_stop(self):
+        self.sleep_activity.register_stop_callbacks(self.reset_sleep_on_stop)
+
+    def register_on_action_start(self):
+        self.sleep_activity.register_start_callbacks(self.marked_dispatched_plans)
+
 
 
 

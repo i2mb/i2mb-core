@@ -1,7 +1,7 @@
 import numpy as np
 
 from i2mb.activities.activity_descriptors import Work
-from i2mb.utils import global_time
+from i2mb.utils import global_time, time
 from i2mb.worlds import BaseRoom
 from i2mb.worlds.furniture.tables.dining import DiningTable
 
@@ -35,10 +35,11 @@ class Office(BaseRoom):
 
         # Stand alone building
         self.available_activities.extend(activities)
+        self.default_activity = activities[0]
 
         # Seat management
         self.available_seats = self.get_available_seats(num_tables * 2)
-        self.seat_assignment = np.ones(num_tables * 2) * -1
+        self.seat_assignment = np.ones(num_tables * 2, dtype=int) * -1
 
     def arrange_tables(self):
         row = col = 0
@@ -58,41 +59,18 @@ class Office(BaseRoom):
         seats = np.vstack([t.get_sitting_positions()[2:4, :] for t in self.tables])
         return seats
 
-    def sit_agents(self, idx):
-        bool_idx = self.population.find_indexes(idx)
-        required_seats = len(idx)
-        available_seats = (self.seat_assignment == -1)
-
-        if available_seats.sum() > 0:
-            if required_seats > available_seats.sum():
-                required_seats = available_seats.sum()
-
-            choose_seats = np.where(available_seats)[0][:required_seats]
-            self.seat_assignment[choose_seats] = idx[:required_seats]
-
-            choose_idx = np.where(bool_idx)[0][:required_seats]
-            self.population.position[choose_idx] = self.available_seats[choose_seats]
-
-        if required_seats < len(idx):
-            bool_idx = self.population.find_indexes(idx[required_seats:])
-            required_seats = len(idx) - required_seats
-            choose_idx = np.where(bool_idx)[0][:required_seats]
-            self.population.position[choose_idx] = np.random.random((required_seats, 2)) * self.dims
-            if hasattr(self.population, "motion_mask"):
-                self.population.motion_mask[bool_idx] = True
-
     def raise_agents(self, idx):
         assigned_seats = (self.seat_assignment.reshape(-1, 1) == idx).any(axis=1)
         self.seat_assignment[assigned_seats] = -1
         bool_idx = self.population.find_indexes(idx)
         self.population.position[bool_idx] = self.dims / 2
 
-    def start_activity(self, idx, descriptor_ids):
+    def start_activity(self, idx, activity_id):
         bool_idx = self.population.find_indexes(idx)
         self.population.motion_mask[bool_idx] = False
         self.sit_agents(idx)
 
-    def stop_activity(self, idx, descriptor_ids):
+    def stop_activity(self, idx, activity_id):
         bool_idx = self.population.find_indexes(idx)
         self.population.motion_mask[bool_idx] = True
         self.raise_agents(idx)

@@ -13,3 +13,40 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from enum import IntEnum
+
+
+class ActivityProperties(IntEnum):
+    """Returns the index of the property"""
+    start = 0
+    duration = 1
+    elapsed = 2
+    accumulated = 3
+    in_progress = 4
+    blocked_for = 5
+    location = 6
+
+
+class ActivityDescriptorProperties(IntEnum):
+    """Returns the index of the ActivityDescriptor properties"""
+    act_idx = 0
+    start = 1
+    duration = 2
+    priority_level = 3
+    block_for = 4
+    location_ix = 5
+    blocks_location = 6
+    blocks_parent_location = 7
+    descriptor_id = 8
+
+
+class TypesOfLocationBlocking(IntEnum):
+    """We consider three ways to block locations. The `shared` mode permits other agents in the location when
+    blocking. In contrast, the `rejecting` mode will expel all agents from the current location. In `wait` mode,
+    an agent will wait for the location to become available. """
+    no_blocking = 0
+    shared = 1
+    wait = 2
+    rejecting = 3
+
+

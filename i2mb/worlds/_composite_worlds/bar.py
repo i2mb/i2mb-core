@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 from matplotlib.patches import Rectangle
 
+from i2mb.activities.activity_descriptors import EatAtBar
 from i2mb.worlds import CompositeWorld
 from i2mb.worlds.furniture.tables import RectangularTable
 from i2mb.worlds.furniture.tables.bar import Bar as BarTable
@@ -46,6 +47,13 @@ class Bar(CompositeWorld, PublicSpace):
         length = 3 * self.corridor_width + bh + th
         kwargs["dims"] = (width, length)
         super().__init__(**kwargs)
+
+        activities = [EatAtBar(location=self)]
+        self.local_activities.extend(activities)
+        self.default_activity = activities[0]
+
+        # Standalone building
+        self.available_activities.extend(activities)
 
     def arrange_tables(self):
         row = col = 0

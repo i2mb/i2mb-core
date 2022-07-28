@@ -106,25 +106,6 @@ class LivingRoom(BaseRoom):
             self.sitting_pos.extend(a.sitting_pos)
             self.target_pos.extend(a.sitting_pos)
 
-    def sit_particles(self, idx):
-        bool_idx = self.population.find_indexes(idx)
-        required_seats = len(idx)
-        available_seats = (self.seat_assignment == -1)
-
-        if available_seats.sum() > 0:
-            if required_seats > available_seats.sum():
-                required_seats = available_seats.sum()
-
-            choose_seats = np.where(available_seats)[0][:required_seats]
-            self.seat_assignment[choose_seats] = idx[:required_seats]
-
-            choose_idx = np.where(bool_idx)[0][:required_seats]
-            self.population.position[choose_idx] = self.available_seats[choose_seats]
-
-        if required_seats < len(idx):
-            choose_idx = np.where(~bool_idx)[0][:required_seats]
-            self.population.position[choose_idx] = np.random.random((len(idx) - required_seats, 2)) * self.dims
-
     def stand_up_particle(self, idx):
         assigned_seats = (self.seat_assignment.reshape(-1, 1) == idx).any(axis=1)
         self.seat_assignment[assigned_seats] = -1
@@ -132,7 +113,7 @@ class LivingRoom(BaseRoom):
         self.population.position[bool_idx] = self.dims / 2
 
     def start_activity(self, idx, activity_id):
-        self.sit_particles(idx)
+        self.sit_agents(idx)
 
     def stop_activity(self, idx, descriptor_ids):
         self.stand_up_particle(idx)

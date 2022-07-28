@@ -19,11 +19,13 @@ class Relocator:
         n = len(population)
         self.location = np.array([universe] * n)  # type: np.ndarray[CompositeWorld]
         self.position = np.full((n, 2), -0.)
-
+        self.remain = np.zeros((n,), dtype=bool)
         self.visit_counter = {}
 
         population.add_property("location", self.location)
         population.add_property("position", self.position)
+        population.add_property("remain", self.remain)
+        population.add_property("regions", {universe}, l_property=True)
 
         # Events call backs
         self.on_region_exit_actions = []
@@ -161,10 +163,7 @@ class Relocator:
 
         region.location = self.location[idx]
         self.population.regions.add(region)
-        if self not in self.location and self in self.population.regions:
-            self.population.regions.remove(self)
-
-        self.execute_on_region_enter_actions(idx, region, departed_from_regions)
+        self.execute_on_region_enter_actions(idx_, region, departed_from_regions)
 
     def update_visit_counter(self, idx, entrance_region, region):
         if type(region) not in self.visit_counter:

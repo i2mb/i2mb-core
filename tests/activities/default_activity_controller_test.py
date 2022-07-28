@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, skip
 
 from i2mb.activities import ActivityDescriptorProperties
 from i2mb.activities.activity_descriptors import Rest, Work
@@ -32,6 +32,7 @@ class TestDefaultActivityController(I2MBTestCase):
 
         relocator = self.world.relocator
         self.activity_manager = ActivityManager(self.population, relocator=relocator)
+        self.activity_manager.register_location_activities()
         self.default_activity_controller = DefaultActivityController(self.population, self.activity_manager)
         # self.register_available_location_activities()
 
@@ -56,10 +57,10 @@ class TestDefaultActivityController(I2MBTestCase):
         self.assertEqualAll(self.activity_manager.current_activity, region_1.activity_class.id)
 
     def set_default_activity_description(self, region_1, region_2):
-        self.default_activity_controller.current_default_activity_descriptor[
-        :5] = region_1.create_specs().specifications
-        self.default_activity_controller.current_default_activity_descriptor[
-        5:] = region_2.create_specs().specifications
+        self.default_activity_controller.current_default_activity_descriptor[:5] = \
+            region_1.create_specs().specifications
+        self.default_activity_controller.current_default_activity_descriptor[5:] = \
+            region_2.create_specs().specifications
 
     def test_default_activity_restart(self):
         # Walk to stage deafult activity
@@ -112,6 +113,12 @@ class TestDefaultActivityController(I2MBTestCase):
         self.world.relocator.move_agents(self.population.index, self.world.universe.regions[2])
         self.assertEqualAll(self.default_activity_controller.current_default_activity, ActivityNone.id,
                             msg=f"{self.default_activity_controller.current_default_activity}")
+
+    @skip("Please implement")
+    def test_respect_staged_activities(self):
+        """This was found when testing integration with sleep. Make sure that when an activity is in the staging
+        area, default activity does not overwrite. Both on_entry and in step methods."""
+        ...
 
 
 

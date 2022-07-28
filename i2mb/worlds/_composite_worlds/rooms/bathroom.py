@@ -45,7 +45,10 @@ class Bathroom(BaseRoom):
                                                         blocks_location=True,
                                                         blocks_for=global_time.make_time(hour=3)
                                                         ),
-            i2mb.activities.activity_descriptors.Sink(location=self, device=self.sink),
+            i2mb.activities.activity_descriptors.Sink(location=self, device=self.sink,
+                                                      duration=global_time.make_time(minutes=5),
+                                                      blocks_for=global_time.make_time(minutes=45)),
+
             i2mb.activities.activity_descriptors.Shower(location=self, device=self.bathtub,
                                                         duration=global_time.make_time(minutes=15),
                                                         blocks_for=global_time.make_time(hour=22),
@@ -56,10 +59,10 @@ class Bathroom(BaseRoom):
         self.descriptor_idx = {}
 
     def post_init(self, base_file_name=None):
-        self.descriptor_idx = {d.activity_id: d for d in self.activities}
+        self.descriptor_idx = {d.activity_class.id: d for d in self.activities}
 
     def start_activity(self, idx, activity_id):
-        if activity_id == ActivityNone.id:
+        if activity_id not in self.descriptor_idx:
             return
 
         bool_ix = self.population.find_indexes(idx)

@@ -18,7 +18,10 @@ from i2mb.pathogen import UserStates
 
 
 def get_awake_agents(population):
-    return (~population.sleep & (population.state != UserStates.deceased)).ravel()
+    if hasattr(population, "sleep"):
+        return (~population.sleep & (population.state != UserStates.deceased)).ravel()
+    else:
+        return (population.state != UserStates.deceased).ravel()
 
 
 def get_location_names(population, filter_by):

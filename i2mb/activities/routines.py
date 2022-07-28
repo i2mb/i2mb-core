@@ -10,7 +10,7 @@ class RoutineCollection:
 class Routine:
     def __init__(self, activity_list, activity_indices=None, padding_index=0):
         if activity_indices is None:
-            activity_indices = list(range(len(activity_list.activities)))
+            activity_indices = list(range(len(activity_list.activity_manager)))
 
         self.activity_list = activity_list
         self.activity_indices = activity_indices

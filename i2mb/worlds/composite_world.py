@@ -65,7 +65,6 @@ class CompositeWorld(World):
             self.population = None
             self.gravity = np.zeros((0, 2))
             self.containment_region = np.array([])
-            self.remain = np.array([])
             if waiting_room:
                 self.in_waiting_room = np.array([])
 
@@ -76,13 +75,11 @@ class CompositeWorld(World):
         self.containment_region = np.empty((n,), dtype=object)
         self.home = np.empty((n,), dtype=object)
         self.at_home = np.zeros((n,), dtype=bool)
-        self.remain = np.zeros((n,), dtype=bool)
 
-        population.add_property("remain", self.remain)
         population.add_property("containment_region", self.containment_region)
         population.add_property("home", self.home)
         population.add_property("at_home", self.at_home)
-        population.add_property("regions", {self}, l_property=True)
+
         self.gravity = np.zeros((n, 2))
         population.add_property("gravity", self.gravity)
 
@@ -232,5 +229,3 @@ class CompositeWorld(World):
         self.population.gravity[boo_idx] = np.zeros((n, 2))
 
         return super().enter_world(n, idx, arriving_from)
-
-

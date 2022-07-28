@@ -49,6 +49,10 @@ class Apartment(CompositeWorld):
         self.beds = self.__get_beds()
         self.bed_assignment = []
         self.agent_bedroom = []
+        self.default_activity = self.living_room.local_activities[0]
+
+        for region in self.regions:
+            region.default_activity = self.default_activity
 
         # People that actually live in this house
         self.inhabitants = None
@@ -187,10 +191,7 @@ class Apartment(CompositeWorld):
     def exit_world(self, idx, global_population):
         # bool_idx = (self.population.reshape(-1, 1) == idx).any(axis=1)
         # print(bool_idx)
-        bool_idx = self.population.find_indexes(idx)
-        self.population.at_home[bool_idx] = False
-        if hasattr(self.population, "reset_location_activities"):
-            self.population.reset_location_activities[bool_idx] = True
         self.population.remove(idx)
 
-
+        at_home_mask = (self.inhabitants.index.reshape(-1, 1) == idx).any(axis=1)
+        self.inhabitants.at_home[at_home_mask] = False

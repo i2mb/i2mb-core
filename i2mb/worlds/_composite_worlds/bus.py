@@ -5,6 +5,7 @@ from matplotlib import image as mpimage
 from matplotlib.axes import Axes
 
 from i2mb import _assets_dir
+from i2mb.activities.activity_descriptors import CommuteBus
 from i2mb.worlds import CompositeWorld
 # Based on Mercedes-benz BUS Citaro K 2 doors C 628.405-13*)
 from i2mb.worlds.world_base import PublicSpace
@@ -40,6 +41,11 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
 
         if self.orientation == 1:
             self.seat_positions = self.seat_positions.dot([[0, 1], [-1, 0]]) + [self.dims[0], 0]
+
+        activities = [CommuteBus(location=self)]
+        self.local_activities.extend(activities)
+        self.available_activities.extend(activities)
+        self.default_activity = activities[0]
 
     def _draw_world(self, ax: Axes, bbox=False, origin=(0., 0.), **kwargs):
         img = mpimage.imread(f"{_assets_dir}/CitaroK.png")
@@ -78,15 +84,12 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
             return self.population.position[idx_]
 
         idx_ = self.population.find_indexes(idx[seats:])
-        self.position[idx_] = np.random.random((standing, 2)) * (self.dims * 1 / 3) + (self.dims * 1 / 3)
+        self.population.position[idx_] = np.random.random((standing, 2)) * (self.dims * 1 / 3) + (self.dims * 1 / 3)
 
     def exit_world(self, idx, global_population):
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         if hasattr(self.population, "motion_mask"):
             self.population.motion_mask[bool_idx] = True
-
-        if hasattr(self.population, "reset_location_activities"):
-            self.population.reset_location_activities[bool_idx] = True
 
         for ix in idx:
             seat = self.seat_assignments.get(ix)

@@ -19,25 +19,26 @@ from unittest import TestCase
 import numpy as np
 from matplotlib import pyplot as plt
 
-from i2mb.activities.activity_manager import DefaultActivityController
-from i2mb.activities.base_activity import ActivityManager
+from i2mb.activities.controllers.default_activity_controller import DefaultActivityController
+from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.controllers.location_activities import LocationActivitiesController
 from i2mb.activities.controllers.sleep import SleepBehaviourController
 from i2mb.utils import global_time
 from i2mb.worlds import Apartment, Bathroom
+from tests.i2mb_test_case import I2MBTestCase
 from tests.world_tester import WorldBuilder
 
 global_time.ticks_hour = 60 // 5
 
 
-class TestLocationActivityController(TestCase):
+class TestLocationActivityController(I2MBTestCase):
     def setup_engine(self, callbacks=None, no_gui=True, sleep=False, use_office=False):
         self.w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
                               update_callback=callbacks, no_gui=no_gui, use_office=use_office)
         print(f"Running for {global_time.make_time(day=3)} ticks")
 
         self.population = self.w.population
-        self.activity_list = ActivityManager(self.w.population)
+        self.activity_manager = ActivityManager(self.w.population)
 
         # sleep_duration = partial(np.random.normal, global_time.make_time(hour=8), global_time.make_time(hour=1))
         # sleep_midpoint = partial(np.random.normal, global_time.make_time(hour=1), global_time.make_time(hour=1))
@@ -47,16 +48,13 @@ class TestLocationActivityController(TestCase):
         def sleep_midpoint(shape):
             return np.ones(shape, dtype=int) * global_time.make_time(hour=1)
 
-        self.activity_manager = DefaultActivityController(self.w.population, self.w.universe, activities=self.activity_list)
-
+        self.activity_manager = ActivityManager(self.w.population, self.w.relocator)
         sleep_model = SleepBehaviourController(self.w.population, self.activity_manager, self.w.universe,
                                                sleep_duration,
                                                sleep_midpoint)
 
-        self.location_manager = LocationActivitiesController(self.population, self.w.universe,
-                                                             activities=self.activity_list)
-
-        self.activity_manager.controllers.append(self.location_manager)
+        self.location_manager = LocationActivitiesController(self.population,
+                                                             activity_manager=self.activity_manager)
 
         self.sleep_model = sleep_model
         if sleep:
@@ -65,10 +63,11 @@ class TestLocationActivityController(TestCase):
             self.w.engine.models.extend([self.location_manager, self.activity_manager])
 
         self.w.engine.post_init_modules()
+        self.engine_iterator = self.w.engine.step()
 
     def walk_engine(self, num_steps):
         t = self.w.engine.time
-        for frame, rs in enumerate(self.w.engine.step(), start=t):
+        for frame, rs in enumerate(self.engine_iterator, start=t):
             stop = self.w.process_stop_criteria(frame)
             if stop:
                 return
@@ -81,7 +80,7 @@ class TestLocationActivityController(TestCase):
 
     def test_setup(self):
         self.setup_engine()
-        expected_activities = [False, False] + [True for _ in self.activity_manager.activity_manager.activity_manager[2:]]
+        expected_activities = [False, False] + [True for _ in self.activity_manager.activity_list.activities[2:]]
         current_activities = list(self.location_manager.activities_under_my_control)
         self.assertListEqual(expected_activities, current_activities)
 

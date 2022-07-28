@@ -8,6 +8,12 @@ class Sleep(ActivityDescriptor):
         self.activity_class = atomic_activities.Sleep
 
 
+class CommuteBus(ActivityDescriptor):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.activity_class = atomic_activities.CommuteBus
+
+
 class Work(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
