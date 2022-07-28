@@ -167,6 +167,7 @@ class ActivityList:
 
     def add(self, activity):
         if type(activity) in self.activity_types:
+            activity.id = type(activity).id
             return
 
         self.activities.append(activity)
