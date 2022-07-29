@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, Callable, TYPE_CHECKING
 
 import numpy as np
 
@@ -7,6 +7,10 @@ from i2mb.activities import ActivityProperties, ActivityDescriptorProperties, Ty
 from i2mb.activities.base_activity import ActivityList, ActivityController
 from i2mb.engine.relocator import Relocator
 from i2mb.utils import time
+from i2mb.utils.collections import ConstrainedDict
+
+if TYPE_CHECKING:
+    from i2mb.worlds import World
 
 
 class TriggeredActivityHandler(Protocol):
@@ -26,6 +30,7 @@ class LocationTriggeredActivityHandler:
         self.__trigger_on_location.setdefault(location_ix, []).append(action)
 
     def execute_handler_actions(self):
+        results = []
         # TODO: Maybe computing the difference between population.regions and registered location triggers
         #  and then looping over that difference might be faster than current implementation.
         seen_parents = set()
@@ -35,12 +40,14 @@ class LocationTriggeredActivityHandler:
 
             if region.index in self.__trigger_on_location:
                 for action in self.__trigger_on_location[region.index]:
-                    action(region)
+                    results.append(action(region))
 
         for parent in seen_parents:
             if parent.index in self.__trigger_on_location:
                 for action in self.__trigger_on_location[parent.index]:
-                    action(parent)
+                    results.append(action(parent))
+
+        return results
 
 
 class ActivityManager(Model):
@@ -48,6 +55,12 @@ class ActivityManager(Model):
 
     def __init__(self, population, relocator: 'Relocator' = None, write_diary=False):
         super().__init__()
+
+        self.controllers = []
+        self.activity_controllers = {}
+        self.__location_activity_controllers = ConstrainedDict(self.activity_controllers,
+                                                               msg="Trying to set a location controller"
+                                                                   " for a global activity {}")
 
         self.write_diary = write_diary
         self.relocator = None
@@ -60,12 +73,12 @@ class ActivityManager(Model):
 
         self.current_activity = np.full(population_size, -1, dtype=int)
         self.current_descriptors = np.full((population_size, len(ActivityDescriptorProperties)), -1, dtype=int)
+        self.current_activity_interruptable = np.ones(len(self.population), dtype=bool)
 
         # Activity Diary
         self.file = None
 
         # Activity rankings
-        self.activity_types = np.array([])
         self.activity_ranking = {}
 
         # TriggerHandlers
@@ -75,7 +88,8 @@ class ActivityManager(Model):
 
     def post_init(self, base_file_name=None):
         self.register_location_activities()
-        self.activity_types = np.array([act_type.__name__ for act_type in self.activity_list.activity_types])
+        self.register_activity_on_stop_method()
+        self.__execute_controller_registration()
 
         # Activity Diary
         if self.write_diary:
@@ -84,6 +98,10 @@ class ActivityManager(Model):
             self.base_file_name = f"{self.base_file_name}_activity_history.csv"
             self.file = open(self.base_file_name, "w+")
             self.file.write(",".join(self.file_headers) + "\n")
+
+    def register_activity_on_stop_method(self):
+        for activity in self.activity_list.activities:
+            activity.register_start_callbacks(self.update_interruptable_flag)
 
     def register_activity_stop_logger(self):
         for activity in self.activity_list.activities:
@@ -106,6 +124,9 @@ class ActivityManager(Model):
         activity_log = np.vstack([ids, activity_type, start, elapsed, locations]).T
         self.file.write("\n".join([",".join(r) for r in activity_log]) + "\n")
 
+    def update_interruptable_flag(self, act_id, t, stop_selector):
+        self.current_activity_interruptable[stop_selector] = True
+
     def __del__(self):
         if self.file is not None:
             self.file.close()
@@ -122,6 +143,7 @@ class ActivityManager(Model):
 
     def register_activity(self, activity):
         self.activity_list.add(activity)
+        return self.activity_list.activities[activity.id]
 
     def pre_step(self, t):
         self.update_blocked_activities()
@@ -130,7 +152,8 @@ class ActivityManager(Model):
     def step(self, t):
 
         if self.relocator is not None:
-            self.location_activity_handler.execute_handler_actions()
+            results = self.location_activity_handler.execute_handler_actions()
+            self.process_handler_results(results)
 
         self.start_staged_activities()
 
@@ -239,14 +262,20 @@ class ActivityManager(Model):
         if len(act_descriptors) == 1 and len(ids) > 1:
             act_descriptors = np.tile(act_descriptors, (len(ids), 1))
 
+        # Check activities are not blocked
         activities = act_descriptors[:, ActivityDescriptorProperties.act_idx]
         non_blocked_activities = self.activity_list.get_blocked_for(ids, activities) == 0
-        act_descriptors = act_descriptors[non_blocked_activities, :]
-        ids = ids[non_blocked_activities]
 
-        self.current_descriptors[ids] = act_descriptors
+        # Check if the current activity is uninterruptible
+        interruptable = self.current_activity_interruptable[ids]
 
-        return non_blocked_activities
+        # Only stage activities that are not blocked and that hte current activity can be interrupted
+        staging = non_blocked_activities & interruptable
+        act_descriptors = act_descriptors[staging, :]
+        ids = ids[staging]
+        self.current_descriptors[ids] = act_descriptors[:, ]
+
+        return staging
 
     def start_activities(self, ids):
         ids = self.population.index[ids]
@@ -284,6 +313,7 @@ class ActivityManager(Model):
                                         act_descriptors[:, ActivityDescriptorProperties.location_ix])
 
         self.current_descriptors[ids, :] = -1
+        self.current_activity_interruptable[ids] = act_descriptors[:, ActivityDescriptorProperties.interruptable]
 
         self.block_locations(ids, act_descriptors)
 
@@ -379,4 +409,32 @@ class ActivityManager(Model):
                     if act_type not in self.activity_list.activity_types:
                         activity = act_type(self.population)
                         self.register_activity(activity)
+
+    def register_activity_controller(self, controller: 'ActivityController',
+                                     registration_callback: Callable[['ActivityManager', 'World'], None],
+                                     activity=None):
+        self.controllers.append((controller, registration_callback, activity))
+
+    def add_location_activity_controller(self, region_ix, activity_id, controller):
+        self.__location_activity_controllers[(region_ix, activity_id)] = controller
+        self.location_activity_handler.register_handler_action(region_ix, controller.step_on_handler)
+
+    def has_location_controller(self, region_id, activity_id):
+        return (region_id, activity_id) in self.__location_activity_controllers
+
+    def __execute_controller_registration(self):
+        for controller, registration_callback, activity in self.controllers:
+            # Register a global activity controller
+            if activity is not None:
+                self.activity_controllers[activity.id] = controller
+                return
+
+            registration_callback(self, self.relocator.universe)
+
+    def process_handler_results(self, results):
+        for descriptors, idx in results:
+            if len(descriptors) == 0:
+                continue
+
+            self.stage_activity(descriptors, idx)
 

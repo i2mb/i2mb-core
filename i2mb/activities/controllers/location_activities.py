@@ -4,7 +4,7 @@ import numpy as np
 
 from i2mb import Model
 from i2mb.activities.activity_descriptors import Rest
-from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
+from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs, ActivityDescriptor
 from i2mb.engine.agents import AgentList
 from i2mb.utils import global_time
 
@@ -15,20 +15,29 @@ if TYPE_CHECKING:
 
 
 class LocationActivitiesController(Model):
-    def __init__(self, population: AgentList, activity_manager: 'ActivityManager', routine_schedules=None):
+    def __init__(self, population: AgentList, routine_schedules=None):
 
         super().__init__()
-        self.activity_manager = activity_manager
         self.population = population
 
-        self.location_descriptors = {}
-        self.available_activities_in_location_queue = {}
+        # Operational Stuff
+        # Index to keep track of descriptors per region
+        self.location_activities_under_my_control = {}
 
-        self.active_locations = np.zeros(len(self.population), dtype=int)
+        # Index the activities that are under our control, and their types
+        self.controlled_activities = set()
+        self.controlled_activities_types = set()
 
-        # Determine that the person is finished with the activity
+        # Pointer to available activities
+        self.descriptor_index = np.full(len(population), -1, dtype=object)
+        self.descriptor_index[:] = [[]]
+
+        # Track that the person has planned, started and finished an activity
+        self.has_plan = np.zeros(len(self.population), dtype=bool)
+        self.started = np.zeros(len(self.population), dtype=bool)
         self.finished = np.ones(len(self.population), dtype=bool)
 
+        # Routine Management
         self.routine_schedule = routine_schedules
         if routine_schedules is None:
             self.load_default_routines()
@@ -37,13 +46,26 @@ class LocationActivitiesController(Model):
         self.skip_activities = set()
         self.current_routine = None
 
-        self.location_parent_index = {}
-        self.location_parents_ids = set()
-        self.descriptor_index = {}
-        self.descriptors_in_use = np.array([], dtype=bool)
+    def registration_callback(self, activity_manager: 'ActivityManager', world: 'World'):
+        self.register_enter_actions(activity_manager)
+        self.__register_as_controller(activity_manager, world)
+        self.register_on_activity_start()
+        self.register_on_activity_stop()
 
-    def post_init(self, base_file_name=None):
-        self.register_enter_actions()
+    def step_on_handler(self, region):
+        idx = region.population.index
+        update_activity = ~self.has_plan[idx]
+        update_activity |= ~self.started[idx]
+        update_activity &= self.finished[idx]
+        if update_activity.any():
+            descriptors = self.location_activities_under_my_control[region.index]
+            act_descriptors = np.random.choice(descriptors, update_activity.sum())
+            act_specs = ActivityDescriptorSpecs.merge_specs([desc.create_specs() for desc in act_descriptors])
+            self.has_plan[idx[update_activity]] = True
+            self.started[idx[update_activity]] = False
+            return act_specs.specifications, idx[update_activity]
+
+        return [], []
 
     def step(self, t):
         self.update_routine_period(t)
@@ -63,49 +85,6 @@ class LocationActivitiesController(Model):
                                      "skip_activities": set()}
         }
 
-    def populate_activity_queues(self):
-        for loc, activities in self.location_descriptors.items():
-            self.populate_activity_queues_by_loc(activities, loc)
-
-    def update_activity_queues(self):
-        for loc in self.location_parents_ids:
-            activities = self.select_activities_under_my_control(self.location_descriptors[loc])
-            activities = set(activities)
-            skip_activities = {act for act in activities if type(act) in self.skip_activities}
-
-            ma_activities_set = activities - skip_activities
-
-            # Reset queues
-            self.available_activities_in_location_queue[loc][:] = None
-
-            # Append new descriptors
-            ma_activities = self.available_activities_in_location_queue[loc]
-            ma_activities[:len(ma_activities_set)] = list(ma_activities_set)
-
-    def populate_activity_queues_by_loc(self, descriptors, loc):
-        loc_parent = self.location_parent_index.get(loc, -1)
-        if loc_parent in self.available_activities_in_location_queue:
-            # all children location use the  same queue
-            ma_activities = self.available_activities_in_location_queue[loc_parent]
-            self.available_activities_in_location_queue[loc] = ma_activities
-            return
-
-        ma_activities = self.select_activities_under_my_control(descriptors)
-        self.available_activities_in_location_queue[loc] = np.array(ma_activities)
-
-        if loc_parent > -1:
-            # we ran into a child first. So also set the parent.
-            self.available_activities_in_location_queue[loc_parent] = self.available_activities_in_location_queue[loc]
-
-    def select_activities_under_my_control(self, descriptors):
-        ma_activities = []
-        for act in descriptors:
-            if not self.activities_under_my_control[act.activity_id]:
-                continue
-
-            ma_activities.append(act)
-        return ma_activities
-
     def update_routine_period(self, t):
         routine_period = self.get_routine_period(t)
         if not routine_period:
@@ -116,15 +95,6 @@ class LocationActivitiesController(Model):
         if new_routine != self.current_routine:
             self.current_routine = new_routine
             self.skip_activities = self.routine_schedule[routine_period]["skip_activities"]
-            self.update_activity_queues()
-
-    def update_activities_under_my_control(self, controlled_activities):
-        under_my_control = np.zeros_like(self.activity_manager.activity_types, dtype=bool)
-        for ix, act_type in enumerate(self.activity_manager.activity_types):
-            if act_type in controlled_activities:
-                under_my_control[ix] = True
-
-        return under_my_control
 
     def get_routine_period(self, t):
         mask = (self.routines_index[:, 0] < t) & (t <= self.routines_index[:, 1])
@@ -134,54 +104,69 @@ class LocationActivitiesController(Model):
     def update_routine_activities(self, t):
         pass
 
-    def assign_activities_per_location(self, queue, location, finished):
-        request_activities = sum(finished)
-        available_activities = self.available_activities_in_location_queue[location]
-        if len(available_activities) == 0:
-            return
-
-        activity_descriptors = []
-        m_queue_selector = available_activities != None  # noqa
-        for act_descriptor in np.random.choice(available_activities[m_queue_selector], request_activities):
-            activity_descriptors.append(act_descriptor.create_specs())
-
-        activity_descriptors = ActivityDescriptorSpecs.merge_specs(activity_descriptors)
-        self.finished[finished] = False
-        self.descriptors_in_use[activity_descriptors.specifications[:, 8]] = True
-        queue[finished].append(activity_descriptors)
-
     def stop_activity_callback(self, activity_id, t, stop_selector):
         # repopulate single agent descriptor queues
         return
 
-    def stage_next_activity(self, region):
-        """Calls activity_manager.stage_activity"""
-        inactive = (self.activity_manager.current_activity == 0)
-        finished = self.finished | inactive
-        # finished = self.activity_manager.planned_activities.num_items == 0
-        if finished.any():
-            for location in np.unique(self.active_locations[finished]):
-                finished_in_location = (self.active_locations == location) & finished
-                if finished_in_location.any():
-                    self.assign_activities_per_location(queue, location, finished_in_location)
+    def stopped_activities(self, act_id, t, stop_selector):
+        self.finished[stop_selector] = True
 
-    def stopped_activities(self, ids):
-        self.finished[ids] = True
+    def started_activities(self, act_id, t, stop_selector):
+        self.started[stop_selector] = True
+        self.has_plan[stop_selector] = False
 
-    def notify_location_changes(self, n, ids, new_location, arriving_from):
-        if new_location.parent is not None and arriving_from.parent is not None:
-            if arriving_from.parent.id == new_location.parent.id:
+    def notify_location_changes(self, ids, new_location, arriving_from):
+        notify = np.ones_like(ids, dtype=bool)
+        if new_location.parent is not None:
+            # Activities are defined at the parent level, update only people coming from outside the parent
+            arriving_parent = np.array([loc.parent for loc in arriving_from])
+            notify &= (arriving_parent != new_location.parent).ravel() # noqa
+
+            if new_location.parent.index in self.location_activities_under_my_control:
+                location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
+                self.descriptor_index[ids[notify]] = [location_descriptors]
                 return
 
-        self.active_locations[ids] = new_location.id
-        default_action = -1
-
-        self.descriptor_index[ids] = new_location.ava
-
+        if new_location.index in self.location_activities_under_my_control:
+            location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
+            self.descriptor_index[ids[notify]] = [location_descriptors]
 
     def register_exit_action(self):
         pass
 
-    def register_enter_actions(self):
-        relocator = self.activity_manager.relocator
+    def register_on_activity_stop(self):
+        for activity in self.controlled_activities:
+            activity.register_stop_callbacks(self.stopped_activities)
+
+    def register_on_activity_start(self):
+        for activity in self.controlled_activities:
+            activity.register_start_callbacks(self.started_activities)
+
+    def register_enter_actions(self, activity_manager):
+        relocator = activity_manager.relocator
         relocator.register_on_region_enter_action(self.notify_location_changes)
+
+    def __register_as_controller(self, activity_manager, world):
+        processed_regions = set()
+        for r in world.list_all_regions():
+            if not hasattr(r, "available_activities") or len(r.available_activities) == 0:
+                continue
+
+            # we see the parent first, so we skipp the children. We assume that available_activities is synced between
+            # parents and children.
+            if r.parent in processed_regions:
+                continue
+
+            for act_descriptor in r.available_activities:
+                key = (r.index, act_descriptor.activity_class.id)
+                if activity_manager.has_location_controller(*key):
+                    continue
+
+                activity_manager.add_location_activity_controller(*key, self)
+                self.location_activities_under_my_control.setdefault(r.index, []).append(act_descriptor)
+                activity = activity_manager.activity_list.activities[act_descriptor.activity_class.id]
+                self.controlled_activities.add(activity)
+
+            processed_regions.add(r)
+
+

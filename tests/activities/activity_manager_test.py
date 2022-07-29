@@ -224,20 +224,20 @@ class TestActivityManager(I2MBTestCase):
                              sim_duration=global_time.make_time(day=4), no_gui=True)
 
         relocator = world.relocator
-        activity_list, _ = self.init_manager_and_test(relocator)
+        activity_manager, _ = self.init_manager_and_test(relocator)
 
         # Test that the agents do not move
         ids = [3, 5, 6]
         locations = self.population.location.copy()
         activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 0, location_ix=0)
-        activity_list.stage_activity(activity_specs.specifications, ids)
-        activity_list.start_activities(ids)
+        activity_manager.stage_activity(activity_specs.specifications, ids)
+        activity_manager.start_activities(ids)
         locations_after_start = self.population.location
 
         self.assertListEqual(locations.tolist(), locations_after_start.tolist())
 
         # Test correct in_progress status
-        in_progress = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
+        in_progress = np.array(list(activity_manager.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
         test_start = np.zeros_like(in_progress)
         test_start[ids, 0] = 1
         self.assertTrue((in_progress == test_start).all(),
@@ -245,14 +245,14 @@ class TestActivityManager(I2MBTestCase):
 
         # Test that agents moved
         activity_specs = ActivityDescriptorSpecs(2, 0, 0, 0, 0, location_ix=world.universe.regions[0].regions[2].index)
-        activity_list.stage_activity(activity_specs.specifications, ids)
-        activity_list.start_activities(ids)
+        activity_manager.stage_activity(activity_specs.specifications, ids)
+        activity_manager.start_activities(ids)
         expected_locations = locations.copy()
         expected_locations[ids] = world.universe.regions[0].regions[2]
         self.assertListEqual(self.population.location.tolist(), expected_locations.tolist())
 
         # Test correct in_progress status
-        in_progress = np.array(list(activity_list.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
+        in_progress = np.array(list(activity_manager.activity_list.activity_values[:, ActivityProperties.in_progress, :]))
         test_start = np.zeros_like(in_progress)
         test_start[ids, 2] = 1
         self.assertTrue((in_progress == test_start).all(),
@@ -478,6 +478,7 @@ class TestActivityManager(I2MBTestCase):
 
         def location_action(region):
             called_action[0] = True
+            return [], []
 
         activity_manager.location_activity_handler.register_handler_action(world.universe.regions[0].index,
                                                                            location_action)

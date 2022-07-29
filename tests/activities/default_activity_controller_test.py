@@ -19,7 +19,6 @@ class TestDefaultActivityController(I2MBTestCase):
         for i in range(num_steps):
             global_time.set_sim_time(i)
             self.activity_manager.pre_step(i)
-            self.default_activity_controller.step(i)
             self.activity_manager.step(i)
             self.activity_manager.post_step(i)
 
@@ -32,8 +31,10 @@ class TestDefaultActivityController(I2MBTestCase):
 
         relocator = self.world.relocator
         self.activity_manager = ActivityManager(self.population, relocator=relocator)
-        self.activity_manager.register_location_activities()
         self.default_activity_controller = DefaultActivityController(self.population, self.activity_manager)
+        self.activity_manager.register_activity_controller(self.default_activity_controller,
+                                                           self.default_activity_controller.registration_callback)
+        self.activity_manager.post_init()
         # self.register_available_location_activities()
 
     def test_default_activity_mapping(self):
@@ -83,7 +84,6 @@ class TestDefaultActivityController(I2MBTestCase):
         self.assertEqualAll(self.activity_manager.current_activity, 0)
 
     def test_default_activity_on_enter(self):
-        self.default_activity_controller.post_init()
         self.world.relocator.move_agents(self.population.index, self.world.universe.regions[2])
         default_activity_a = self.world.universe.regions[0].default_activity  # type: ActivityDescriptor
         default_activity_b = self.world.universe.regions[1].default_activity  # type: ActivityDescriptor
@@ -103,7 +103,6 @@ class TestDefaultActivityController(I2MBTestCase):
                             msg=f"{self.population.location[5:]}")
 
     def test_default_activity_on_exit(self):
-        self.default_activity_controller.post_init()
         default_activity_a = self.world.universe.regions[0].default_activity  # type: ActivityDescriptor
         default_activity_b = self.world.universe.regions[1].default_activity  # type: ActivityDescriptor
         self.set_default_activity_description(default_activity_a, default_activity_b)

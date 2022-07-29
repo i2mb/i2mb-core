@@ -60,7 +60,8 @@ class ActivityDescriptor:
                                        location_ix=location_index,
                                        blocks_location=self.blocks_location,
                                        blocks_parent_location=self.blocks_parent,
-                                       descriptor_id=self.descriptor_id, size=size)
+                                       descriptor_id=self.descriptor_id,
+                                       interruptable=self.interruptable, size=size)
 
     @staticmethod
     def get_id():
@@ -80,7 +81,7 @@ class CompoundActivityDescriptor:
 
 class ActivityDescriptorSpecs:
     def __init__(self, act_idx=0, start=0, duration=0, priority_level=0, block_for=0, location_ix=0,
-                 blocks_location=0, blocks_parent_location=0, descriptor_id=-1, size=1):
+                 blocks_location=0, blocks_parent_location=0, descriptor_id=-1, interruptable=1, size=1):
         self.act_idx = self.align_variables(act_idx)
         self.start = self.align_variables(start)
         self.duration = self.align_variables(duration)
@@ -91,6 +92,7 @@ class ActivityDescriptorSpecs:
         self.blocks_parent_location = self.align_variables(blocks_parent_location)
         self.blocks_location |= self.blocks_parent_location.astype(bool)
         self.descriptor_id = self.align_variables(descriptor_id)
+        self.interruptable = self.align_variables(interruptable)
 
         self.specifications = np.hstack([self.act_idx,
                                          self.start,
@@ -100,6 +102,7 @@ class ActivityDescriptorSpecs:
                                          self.location_ix,
                                          self.blocks_location,
                                          self.blocks_parent_location,
+                                         self.interruptable,
                                          self.descriptor_id])
 
         if size > 1:

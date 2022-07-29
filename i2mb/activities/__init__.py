@@ -37,7 +37,8 @@ class ActivityDescriptorProperties(IntEnum):
     location_ix = 5
     blocks_location = 6
     blocks_parent_location = 7
-    descriptor_id = 8
+    interruptable = 8
+    descriptor_id = 9
 
 
 class TypesOfLocationBlocking(IntEnum):

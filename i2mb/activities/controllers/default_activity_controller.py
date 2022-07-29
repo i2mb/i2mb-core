@@ -1,12 +1,16 @@
-from i2mb import Model
+from typing import TYPE_CHECKING
+
 from i2mb.activities import ActivityDescriptorProperties
-from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.base_activity import ActivityNone
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
 
+if TYPE_CHECKING:
+    from i2mb.activities.activity_manager import ActivityManager
+    from i2mb.worlds import World
 
-class DefaultActivityController(Model):
-    def __init__(self, population, activity_manager: ActivityManager):
+
+class DefaultActivityController:
+    def __init__(self, population, activity_manager: 'ActivityManager'):
         super().__init__()
 
         self.activity_manager = activity_manager
@@ -17,12 +21,16 @@ class DefaultActivityController(Model):
                                                                            size=len(self.population)).specifications
         self.current_default_activity = self.current_default_activity_descriptor[:, ActivityDescriptorProperties.act_idx]
 
-    def post_init(self, base_file_name=None):
-        self.register_enter_actions()
-        self.register_on_exit_action()
+    def registration_callback(self, activity_manager: 'ActivityManager', world: 'World'):
+        self.register_enter_actions(activity_manager)
+        self.register_on_exit_action(activity_manager)
+        for region in world.list_all_regions():
+            if hasattr(region, "default_activity"):
+                key = (region.index, region.default_activity.activity_class.id)
+                activity_manager.add_location_activity_controller(*key, self)
 
-    def register_enter_actions(self):
-        relocator = self.activity_manager.relocator
+    def register_enter_actions(self, activity_manager):
+        relocator = activity_manager.relocator
         if relocator is None:
             return
 
@@ -30,8 +38,8 @@ class DefaultActivityController(Model):
             self.stage_default_activities_on_entry
         ])
 
-    def register_on_exit_action(self):
-        relocator = self.activity_manager.relocator
+    def register_on_exit_action(self, activity_manager):
+        relocator = activity_manager.relocator
         if relocator is None:
             return
 
@@ -39,17 +47,9 @@ class DefaultActivityController(Model):
             self.cancel_default_activity_on_exit
         ])
 
-    def step(self, t):
+    def step_on_handler(self, region):
         # Handle finished activities
-        self.stage_default_activities(t)
-
-    def stage_activities(self, has_activities_to_stage, activity_descriptors_to_stage, t):
-        # Start times
-        activity_descriptors_to_stage[:, 1] = t
-
-        ids = self.population.index[has_activities_to_stage]
-        no_blocked_activities = self.activity_manager.stage_activity(activity_descriptors_to_stage, ids)
-        idx = ids[no_blocked_activities]
+        return self.stage_default_activities(region)
 
     def stage_default_activities_on_entry(self, idx, region, arriving_from):
         if not hasattr(region, "default_activity"):
@@ -71,10 +71,13 @@ class DefaultActivityController(Model):
         self.current_default_activity_descriptor[idx, :] = ActivityDescriptorSpecs(ActivityNone.id,
                                                                                    size=len(idx)).specifications
 
-    def stage_default_activities(self, t):
+    def stage_default_activities(self, region):
         inactive = self.activity_manager.current_activity == -1
         inactive &= self.activity_manager.current_descriptors[:, ActivityDescriptorProperties.act_idx] == -1
+        inactive &= self.population.location == region
         if inactive.any():
             ids = self.population.index[inactive]
             default_descriptor = self.current_default_activity_descriptor[ids, :]
-            self.activity_manager.stage_activity(default_descriptor, ids)
+            return default_descriptor, ids
+
+        return [], []

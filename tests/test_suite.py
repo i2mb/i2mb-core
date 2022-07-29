@@ -7,7 +7,7 @@ from tests.activities.base_activity_test import TestActivityList
 from tests.activities.activity_manager_test import TestActivityManager
 from tests.activities.default_activity_controller_test import TestDefaultActivityController
 from tests.activities.sleep_behaviour_test import TestSleepBehaviourNoGui
-# from tests.activities.location_activity_controller_test import TestLocationActivityController
+from tests.activities.location_activity_controller_test import TestLocationActivityControllerNoGui
 # from tests.activities.activity_queue_test import ActivityQueueTest
 from tests.activities.activity_descriptor_queue_tests import ActivityDescriptorQueueTest
 

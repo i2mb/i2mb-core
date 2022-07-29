@@ -13,12 +13,11 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from time import sleep
-from unittest import TestCase
-
 import numpy as np
 from matplotlib import pyplot as plt
 
+from i2mb.activities import ActivityDescriptorProperties
+from i2mb.activities.atomic_activities import Sleep, Rest
 from i2mb.activities.controllers.default_activity_controller import DefaultActivityController
 from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.controllers.location_activities import LocationActivitiesController
@@ -32,7 +31,7 @@ global_time.ticks_hour = 60 // 5
 
 
 class TestLocationActivityController(I2MBTestCase):
-    def setup_engine(self, callbacks=None, no_gui=True, sleep=False, use_office=False):
+    def setup_engine(self, callbacks=None, no_gui=True, default=False, sleep=False, use_office=False):
         self.w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
                               update_callback=callbacks, no_gui=no_gui, use_office=use_office)
         print(f"Running for {global_time.make_time(day=3)} ticks")
@@ -49,18 +48,21 @@ class TestLocationActivityController(I2MBTestCase):
             return np.ones(shape, dtype=int) * global_time.make_time(hour=1)
 
         self.activity_manager = ActivityManager(self.w.population, self.w.relocator)
-        sleep_model = SleepBehaviourController(self.w.population, self.activity_manager, self.w.universe,
-                                               sleep_duration,
-                                               sleep_midpoint)
+        self.sleep_model = SleepBehaviourController(self.w.population, self.activity_manager, sleep_duration, sleep_midpoint)
+        self.default_activity_controller = DefaultActivityController(self.population, self.activity_manager)
+        self.location_manager = LocationActivitiesController(self.population)
 
-        self.location_manager = LocationActivitiesController(self.population,
-                                                             activity_manager=self.activity_manager)
+        self.w.engine.models.extend([self.location_manager, self.activity_manager])
+        if default:
+            self.activity_manager.register_activity_controller(self.default_activity_controller,
+                                                               self.default_activity_controller.registration_callback)
 
-        self.sleep_model = sleep_model
         if sleep:
-            self.w.engine.models.extend([sleep_model, self.location_manager, self.activity_manager])
-        else:
-            self.w.engine.models.extend([self.location_manager, self.activity_manager])
+            self.activity_manager.register_activity_controller(self.sleep_model, self.sleep_model.registration_callback)
+            self.w.engine.models.insert(0, self.sleep_model)
+
+        self.activity_manager.register_activity_controller(self.location_manager,
+                                                           self.location_manager.registration_callback)
 
         self.w.engine.post_init_modules()
         self.engine_iterator = self.w.engine.step()
@@ -78,165 +80,9 @@ class TestLocationActivityController(I2MBTestCase):
 
             self.w.update_callback(self.w, frame)
 
-    def test_setup(self):
-        self.setup_engine()
-        expected_activities = [False, False] + [True for _ in self.activity_manager.activity_list.activities[2:]]
-        current_activities = list(self.location_manager.activities_under_my_control)
-        self.assertListEqual(expected_activities, current_activities)
 
-        # Check that there are no activities registered for the square location
-        loc_id = self.w.universe.regions[2].id
-        self.assertListEqual([], self.location_manager.location_descriptors[loc_id])
-
-        # Check activities registered for Apartment 0 and 1
-        for i in range(2):
-            loc_id = self.w.universe.regions[i].id
-            available_activities = self.w.universe.regions[i].available_activities
-            self.assertListEqual(available_activities, self.location_manager.location_descriptors[loc_id])
-
-        # test that descriptor activity Id, match activity id
-        for k, v in self.location_manager.location_descriptors.items():
-            for act_descriptor in v:
-                act_id = act_descriptor.activity_id
-                expected_act_type = act_descriptor.activity_class
-                act_type = self.activity_manager.activity_manager.activity_types[act_id]
-                location = (self.activity_manager.region_index[:, 0] == k)
-                location = self.activity_manager.region_index[location, 2]
-                self.assertEqual(expected_act_type, act_type, msg=f"Problem found at {k}, {location}, {act_id}")
-
-    def test_update_local_activities(self):
-        self.setup_engine()
-        expected_activities = [False, False] + [True for _ in self.activity_manager.activity_manager.activity_manager[2:]]
-        current_activities = list(self.location_manager.activities_under_my_control)
-        self.assertListEqual(expected_activities, current_activities)
-
-        # Move agents to the square space
-        self.w.universe.move_agents(slice(None), self.w.universe.regions[2])
-
-        # Check that every one was reset
-        self.assertTrue(self.activity_manager.reset_location_activities.all())
-
-        # update_local_activities
-        locations = self.population.location[self.activity_manager.reset_location_activities.ravel()]
-        self.location_manager.notify_location_changes(self.activity_manager.reset_location_activities.ravel(),
-                                                      locations)
-
-        # active location
-        self.assertTrue((self.location_manager.active_locations == self.w.universe.regions[2].id).all())
-
-        for home in self.w.universe.regions[:2]:
-            self.w.universe.move_agents(self.population.home == home, home)
-
-        self.assertTrue(self.activity_manager.reset_location_activities.all())
-        locations = self.population.location[self.activity_manager.reset_location_activities.ravel()]
-        self.location_manager.notify_location_changes(self.activity_manager.reset_location_activities.ravel(),
-                                                      locations)
-
-        expected_location = [self.w.universe.regions[0].get_entrance_sub_region().id] * 5 + \
-                            [self.w.universe.regions[1].get_entrance_sub_region().id] * 5
-        actual_location = list(self.location_manager.active_locations)
-        self.assertListEqual(expected_location, actual_location)
-
-    def test_update_routine_period(self):
-        self.setup_engine()
-        time_500, time_1100, time_1400, time_1700, time_2300 = [global_time.make_time(hour=h)
-                                                                for h in [5, 11, 14, 17, 23]]
-        for t in range(global_time.make_time(day=4)):
-            self.location_manager.update_routine_period(t)
-            if t < time_500:
-                self.assertEqual(None, self.location_manager.current_routine, msg=f"{t}, {t}")
-
-            if time_500 < t < time_1100:
-                self.assertEqual("Morning routine", self.location_manager.current_routine,
-                                 msg=f"{time_500}, {t}, {time_1100}")
-
-            if time_1100 < t < time_1400:
-                self.assertEqual("Lunch", self.location_manager.current_routine, msg=f"{t}, {t}")
-                routine = (time_1100, time_1400)
-                for loc, queue in self.location_manager.available_activities_in_location_queue.items():
-                    skip_set = self.location_manager.routine_schedule[routine]["skip_activities"]
-                    test_set = {type(a) for a in queue}
-                    self.assertListEqual([], list(test_set.intersection(skip_set)))
-
-            if time_1400 < t < time_1700:
-                self.assertEqual("Afternoon routine", self.location_manager.current_routine, msg=f"{t}, {t}")
-
-            if time_1700 < t < time_2300:
-                self.assertEqual("Evening routine", self.location_manager.current_routine, msg=f"{t}, {t}")
-
-    def test_schedule_activities(self):
-        self.setup_engine()
-        self.location_manager.update_local_activities(1)
-        self.location_manager.schedule_next_activity_in_routine()
-
-        self.assertTrue((self.activity_manager.planned_activities.queue[:, 0, 0] > 1).all())
-
-    def test_activity_assignment_per_location(self):
-        self.setup_engine()
-        finished = [True, False] * 5
-
-        for i in range(3):
-            for location in set(self.population.location):
-                finished_in_location = (self.population.location == location) & finished
-                if finished_in_location.any():
-                    self.location_manager.assign_activities_per_location(self.activity_manager.planned_activities,
-                                                                         location.id, finished_in_location)
-
-        self.assertListEqual([3 * i for i in finished], list(self.activity_manager.planned_activities.num_items),
-                             msg=f"Num_Items={self.activity_manager.planned_activities.num_items}")
-
-        # return the stop_activity_callback, to check that all activities come back
-        for i in range(3):
-            descriptor_specs = self.activity_manager.planned_activities[finished].pop()
-            self.location_manager.stop_activity_callback(None, 0, None, descriptor_specs[:, 8])
-
-    def test_location_manager_stop(self):
-        def callback(world_builder, frame):
-            time_500, time_1100, time_1400, time_1700, time_2300 = [global_time.make_time(hour=h)
-                                                                    for h in [5, 11, 14, 17, 23]]
-
-            if time_1100 < frame < time_1400:
-                print(frame)
-                self.assertEqual("Lunch", self.location_manager.current_routine, msg=f"{frame}, {frame}")
-
-        self.setup_engine(callback)
-        bathrooms = [loc for loc in self.w.universe.list_all_regions() if type(loc) is Bathroom]
-        for br in bathrooms:
-            br.post_init()
-        self.walk_engine(500)
-
-    def test_location_manager_with_motion_to_empty_space(self):
-        def callback(world_builder, frame):
-            time_500, time_1100, time_1400, time_1700, time_2300 = [global_time.make_time(hour=h)
-                                                                    for h in [5, 11, 14, 17, 23]]
-
-            if time_1100 + 5 == frame:
-                self.w.universe.move_agents(slice(0, 5), self.w.universe.regions[2])
-
-            if time_1400 + 5 == frame:
-                self.w.universe.move_agents(slice(0, 5), self.w.universe.regions[0])
-
-            if time_1100 + 5 < frame < time_1400 + 5:
-                self.assertListEqual([self.w.universe.regions[2]] * 5, list(self.population.location[slice(0, 5)]),
-                                     msg=f"Error at {frame}")
-
-        self.setup_engine(callback)
-        bathrooms = [loc for loc in self.w.universe.list_all_regions() if type(loc) is Bathroom]
-        for br in bathrooms:
-            br.post_init()
-        self.walk_engine(500)
-
-    def check_if_queues_are_ever_empty(self):
-        for loc, desc_list in self.location_manager.location_single_agent_available_activity_queue.items():
-            if len(desc_list) == 0:
-                continue
-
-            queue_empty = (desc_list == None).all()
-            if queue_empty:
-                print("Single Queue Empty", loc)
-
+class TestLocationActivityControllerGui(TestLocationActivityController):
     def test_location_manager_stop_gui(self):
-
         def callback(world_builder, frame):
             for br in bathrooms:
                 selector = self.activity_manager.current_location_id == br.id
@@ -328,40 +174,78 @@ class TestLocationActivityController(I2MBTestCase):
 
         plt.show()
 
-    def test_location_manager_with_sleep_office_no_gui(self):
-        def callback(world_builder, frame):
-            time_500, time_800, time_1100, time_1400, time_1700, time_2300 = [global_time.make_time(hour=h)
-                                                                    for h in [5, 8, 11, 14, 17, 23]]
-            for br in bathrooms:
-                selector = self.activity_manager.current_location_id == br.id
-                if selector.any():
-                    activity_ids = self.activity_manager.current_activity[selector]
-                    print(frame)
-                    activity_types = np.array(self.activity_manager.activity_manager.activity_types)[activity_ids]
-                    print([str(at).split(".")[-1][:-2] for at in activity_types], br.population.index)
 
-            hour = global_time.to_current(time_800, frame)
-            if hour + 5 == frame:
-                self.w.universe.move_agents(slice(0, 3), self.w.universe.regions[2])
-                self.w.universe.move_agents(slice(5, 8), self.w.universe.regions[2])
+class TestLocationActivityControllerNoGui(TestLocationActivityController):
+    def test_setup(self):
+        self.setup_engine(sleep=True, default=True)
+        expected_controllers = self.activity_manager._ActivityManager__location_activity_controllers  # noqa
+        for r in self.w.universe.regions:
+            for act in r.available_activities:
+                key = (r.index, act.activity_class.id)
+                controller = expected_controllers[key]
 
-            hour = global_time.to_current(time_1700, frame)
-            if hour + 5 == frame:
-                self.w.universe.move_agents(slice(0, 3), self.w.universe.regions[0])
-                self.w.universe.move_agents(slice(5, 8), self.w.universe.regions[1])
+                if act.activity_class == Sleep:
+                    self.assertEqual(controller, self.sleep_model)
 
-            select = self.activity_manager.interrupted_activities.num_items > 0
-            activities = ""
-            if select.any():
-                activities = self.activity_manager.interrupted_activities.queue[select, 0, 0]
-                activities = np.array(self.activity_manager.activity_manager.activity_types)[activities]
-                activities = ", ".join([str(a).split(".")[-1][:-2] for a in activities])
+                elif act.activity_class == Rest:
+                    self.assertEqual(controller, self.default_activity_controller)
 
-            self.assertFalse("Sleep" in activities)
+                else:
+                    self.assertEqual(controller, self.location_manager)
 
-        self.setup_engine(no_gui=True, sleep=True, callbacks=callback, use_office=True)
-        bathrooms = [loc for loc in self.w.universe.list_all_regions() if type(loc) is Bathroom]
-        for br in bathrooms:
-            br.post_init()
+        for loc, activities in self.location_manager.location_activities_under_my_control.items():
+            if isinstance(loc, Apartment):
+                self.assertGreater(len(activities), 0)
 
-        self.walk_engine(500)
+            for act in activities:
+                self.assertNotEqual(act, Sleep, msg="Sleep should not be in the controller list")
+                self.assertNotEqual(act, Rest, msg="Rest should not be in the controller list")
+
+        self.assertGreater(len(self.location_manager.controlled_activities), 0,
+                           msg=f"{self.location_manager.controlled_activities}")
+
+    def test_update_local_activities(self):
+        self.setup_engine(sleep=True, default=True, use_office=True)
+
+        # Move agents to the office space
+        self.w.relocator.move_agents(slice(None), self.w.universe.regions[2])
+
+        # check, no action for the controller
+        expected = np.full(len(self.population), -1, dtype=object)
+        expected[:] = [[]]
+        self.assertEqualAll(self.location_manager.descriptor_index, expected)
+
+        # Move People Back Home
+        for home in self.w.universe.regions[:2]:
+            self.w.relocator.move_agents(self.population.home == home, home)
+
+        # Check that descriptor_index is not empty
+        expected = np.full(len(self.population), -1, dtype=object)
+        expected[:] = [[]]
+        self.assertNotEqualAll(self.location_manager.descriptor_index, expected)
+
+    def test_assign_activities(self):
+        self.setup_engine()
+
+        # Agents start at home, so we can manually call the update to see next activity.
+        for apartment in self.w.universe.regions[:2]:
+            descriptors, idx = self.location_manager.step_on_handler(apartment)
+            for act_id in descriptors[:, ActivityDescriptorProperties.act_idx]:
+                activity = self.activity_manager.activity_list.activities[act_id]
+                self.assertTrue(activity in self.location_manager.controlled_activities, msg=f"{act_id} {activity}")
+
+        self.assertTrueAll(self.location_manager.has_plan)
+
+    def test_start_activities(self):
+        self.setup_engine()
+
+        # Move a bit
+        self.walk_engine(1)
+
+        # Test that every one has started a location activity.
+        self.assertTrueAll(self.location_manager.started)
+        for act_id in self.activity_manager.current_activity:
+            activity = self.activity_manager.activity_list.activities[act_id]
+            self.assertTrue(activity in self.location_manager.controlled_activities, msg=f"{act_id} {activity}")
+
+        self.assertTrueAll(self.location_manager.started)

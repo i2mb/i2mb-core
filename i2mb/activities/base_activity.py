@@ -14,7 +14,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from logging import warn, warning
-from typing import Union, Protocol
+from typing import Union, Protocol, Any
 
 import numpy as np
 
@@ -282,7 +282,7 @@ class ActivityList:
 
 
 class ActivityController(Protocol):
-    def fill_planned_activities_queue(self, queue):
+    def step_on_handler(self, region) -> (Any, Any):
         ...
 
     # def notify_location_changes(self, ids, locations):
@@ -291,5 +291,5 @@ class ActivityController(Protocol):
     # def started_activities(self, ids):
     #     ...
 
-    def stopped_activities(self, ids):
+    def registration_callback(self, ids):
         ...
