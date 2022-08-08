@@ -242,8 +242,7 @@ class TestSleepBehaviourNoGui(TestSleepBehaviour):
 
     def test_callback_registration(self):
         self.setup_engine(no_gui=True)
-        # if  the activity manager diary loger is enabled this test will fail
-        self.assertListEqual(self.sleep_model.sleep_activity._ActivityPrimitive__stop_callback,
+        self.assertListEqual(self.sleep_model.sleep_activity._ActivityPrimitive__stop_callback[-1:],
                              [self.sleep_model.reset_sleep_on_stop])
 
     def test_sleep_unblocking(self):
