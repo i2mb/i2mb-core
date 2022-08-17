@@ -1,5 +1,3 @@
-from typing import Protocol, Callable, TYPE_CHECKING
-
 import numpy as np
 
 from i2mb import Model
@@ -7,47 +5,6 @@ from i2mb.activities import ActivityProperties, ActivityDescriptorProperties, Ty
 from i2mb.activities.base_activity import ActivityList, ActivityController
 from i2mb.engine.relocator import Relocator
 from i2mb.utils import time
-from i2mb.utils.collections import ConstrainedDict
-
-if TYPE_CHECKING:
-    from i2mb.worlds import World
-
-
-class TriggeredActivityHandler(Protocol):
-    def register_handler_action(self, key, action):
-        ...
-
-    def execute_handler_actions(self):
-        ...
-
-
-class LocationTriggeredActivityHandler:
-    def __init__(self, population):
-        self.population = population
-        self.__trigger_on_location = {}
-
-    def register_handler_action(self, location_ix, action):
-        self.__trigger_on_location.setdefault(location_ix, []).append(action)
-
-    def execute_handler_actions(self):
-        results = []
-        # TODO: Maybe computing the difference between population.regions and registered location triggers
-        #  and then looping over that difference might be faster than current implementation.
-        seen_parents = set()
-        for region in self.population.regions:
-            if region.parent is not None:
-                seen_parents.add(region.parent)
-
-            if region.index in self.__trigger_on_location:
-                for action in self.__trigger_on_location[region.index]:
-                    results.append(action(region))
-
-        for parent in seen_parents:
-            if parent.index in self.__trigger_on_location:
-                for action in self.__trigger_on_location[parent.index]:
-                    results.append(action(parent))
-
-        return results
 
 
 class ActivityManager(Model):
@@ -57,10 +14,8 @@ class ActivityManager(Model):
         super().__init__()
 
         self.controllers = []
+        self.__controllers = []
         self.activity_controllers = {}
-        self.__location_activity_controllers = ConstrainedDict(self.activity_controllers,
-                                                               msg="Trying to set a location controller"
-                                                                   " for a global activity {}")
 
         self.write_diary = write_diary
         self.relocator = None
@@ -81,9 +36,6 @@ class ActivityManager(Model):
         # Activity rankings
         self.activity_ranking = {}
 
-        # TriggerHandlers
-        self.location_activity_handler = LocationTriggeredActivityHandler(self.population)
-
         self.link_relocator(relocator)
 
     def post_init(self, base_file_name=None):
@@ -101,7 +53,7 @@ class ActivityManager(Model):
 
     def register_activity_on_stop_method(self):
         for activity in self.activity_list.activities:
-            activity.register_start_callbacks(self.update_interruptable_flag)
+            activity.register_stop_callbacks(self.update_interruptable_flag)
 
     def register_activity_stop_logger(self):
         for activity in self.activity_list.activities:
@@ -150,21 +102,17 @@ class ActivityManager(Model):
         self.stop_activities_with_duration(t)
 
     def step(self, t):
+        # Initialize with inactive population
+        inactive = self.current_activity == -1
+        new_activities = self.current_activity == -1
+        for controller in self.controllers:  # controller: ActivityController
+            new_activities |= controller.has_new_activity(inactive)
 
-        if self.relocator is not None:
-            results = self.location_activity_handler.execute_handler_actions()
-            self.process_handler_results(results)
-
-        self.start_staged_activities()
+        new_activities &= self.collect_new_controller_descriptors(new_activities)
+        self.start_activities(self.population.index[new_activities])
 
     def post_step(self, t):
         self.update_current_activity()
-
-    def start_staged_activities(self):
-        """Do to blocked locations, or wait blocking requests, activity descriptors might be left in the stage area.
-        Here, we try to start them again."""
-        staged = self.current_descriptors[:, ActivityDescriptorProperties.act_idx] != -1
-        self.start_activities(staged)
 
     def unblock_empty_location(self, region):
         self.__unblock_location(region)
@@ -262,6 +210,10 @@ class ActivityManager(Model):
         if len(act_descriptors) == 1 and len(ids) > 1:
             act_descriptors = np.tile(act_descriptors, (len(ids), 1))
 
+        if len(act_descriptors) != len(ids):
+            raise RuntimeError(f"Something is not right length of ids and descriptors does not match"
+                               f" {act_descriptors}, {ids}")
+
         # Check activities are not blocked
         activities = act_descriptors[:, ActivityDescriptorProperties.act_idx]
         non_blocked_activities = self.activity_list.get_blocked_for(ids, activities) == 0
@@ -269,8 +221,16 @@ class ActivityManager(Model):
         # Check if the current activity is uninterruptible
         interruptable = self.current_activity_interruptable[ids]
 
-        # Only stage activities that are not blocked and that hte current activity can be interrupted
+        # Only stage activities that are not blocked and that where the current activity can be interrupted
         staging = non_blocked_activities & interruptable
+
+        # Check that locations are empty for the wait blocking type
+        staging &= self.check_for_wait_blockings(ids, act_descriptors)
+
+        # Relocate agents to trigger space dependent adjustments.
+        location_ids = act_descriptors[:, ActivityDescriptorProperties.location_ix]
+        staging &= self.relocate_agents(ids, location_ids, staging)
+
         act_descriptors = act_descriptors[staging, :]
         ids = ids[staging]
         self.current_descriptors[ids] = act_descriptors[:, ]
@@ -278,30 +238,46 @@ class ActivityManager(Model):
         return staging
 
     def start_activities(self, ids):
-        ids = self.population.index[ids]
         if len(ids) == 0:
             return
 
-        act_descriptors = self.current_descriptors[ids, :]
-        if (act_descriptors[:, ActivityDescriptorProperties.act_idx] == -1).any():
-            un_staged = ids[act_descriptors[:, ActivityDescriptorProperties.act_idx] == -1]
-            raise ValueError(f"Starting un-staged activity for the following ids: {un_staged}.")
-
-        # Check that locations are empty for the wait blocking type
-        ids = self.check_for_wait_blockings(ids, act_descriptors)
-        if len(ids) == 0:
-            return
-
-        # Relocate agents to trigger space dependent adjustments.
-        location_ids = act_descriptors[:, ActivityDescriptorProperties.location_ix]
-        ids = self.relocate_agents(ids, location_ids)
-        if len(ids) == 0:
-            return
-
-        # Refresh descriptors to correspond to moved ids
-        act_descriptors = self.current_descriptors[ids, :]
+        act_descriptors = self.current_descriptors[ids]
         activities = act_descriptors[:, ActivityDescriptorProperties.act_idx]
 
+        # Remove cases where staged activity is the same as current activity.
+        current_activities = self.current_activity[ids]
+        new_activity = current_activities != activities
+        act_descriptors = act_descriptors[new_activity, :]
+        activities = activities[new_activity]
+        ids = ids[new_activity]
+
+        if len(ids) == 0:
+            return
+
+        self.__start_activities(act_descriptors, activities, ids)
+
+    def collect_new_controller_descriptors(self, ids_selector):
+        ids = self.population.index[ids_selector]
+        staged = np.zeros_like(ids, dtype=bool)
+        stage_idx = np.arange(len(staged))
+        full_staged = np.zeros(len(self.population), dtype=bool)
+        for controller in self.controllers:  # type: ActivityController
+            not_staged = ~staged
+            act_descriptors, new_ids_selector = controller.get_new_activity(ids[not_staged])
+            if ~new_ids_selector.any():
+                continue
+
+            staged_ = self.stage_activity(act_descriptors, ids[not_staged][new_ids_selector])
+
+            full_staged[ids[not_staged][new_ids_selector]] = staged_
+            staged[stage_idx[not_staged][new_ids_selector]] = staged_
+
+            if staged.all():
+                break
+
+        return full_staged
+
+    def __start_activities(self, act_descriptors, activities, ids):
         self.current_activity[ids] = activities
         self.activity_list.set_start(ids, activities, time())
         self.activity_list.set_in_progress(ids, activities, 1,)
@@ -311,10 +287,8 @@ class ActivityManager(Model):
                                            act_descriptors[:, ActivityDescriptorProperties.block_for])
         self.activity_list.set_location(ids, activities,
                                         act_descriptors[:, ActivityDescriptorProperties.location_ix])
-
         self.current_descriptors[ids, :] = -1
         self.current_activity_interruptable[ids] = act_descriptors[:, ActivityDescriptorProperties.interruptable]
-
         self.block_locations(ids, act_descriptors)
 
         for act in self.activity_list.activities:
@@ -323,10 +297,10 @@ class ActivityManager(Model):
                 act.start_activity(time(), start_activity)
                 act.finalize_start(start_activity)
 
-    def relocate_agents(self, ids, location_ix):
+    def relocate_agents(self, ids, location_ix, ids_selector):
         if self.relocator is None:
             # warning("No relocator registered, Ignoring location changes.", RuntimeWarning, True)
-            return ids
+            return np.ones_like(ids, dtype=bool)
 
         region_index = self.relocator.universe.region_index
         update_current = location_ix != 0
@@ -339,12 +313,12 @@ class ActivityManager(Model):
             unique_locations = set(locations).difference({-1})
 
             for loc in unique_locations:
-                moving_ids = ids[locations == loc]
+                moving_ids = ids[(locations == loc) & ids_selector]
                 moved_ids = self.relocator.move_agents(moving_ids, loc)
-                ids_selector = (ids.reshape(-1, 1) == moved_ids).any(axis=1)
-                relocated_ids[ids_selector] = True
+                ids_selector_ = (ids.reshape(-1, 1) == moved_ids).any(axis=1)
+                relocated_ids[ids_selector_] = True
 
-        return ids[relocated_ids | ~update_current | same_location]
+        return relocated_ids | ~update_current | same_location
 
     def reset_current_activity(self, ids=None):
         if ids is None:
@@ -383,16 +357,16 @@ class ActivityManager(Model):
 
     def check_for_wait_blockings(self, ids, act_descriptors):
         if self.relocator is None:
-            return ids
+            return np.ones_like(ids, dtype=bool)
 
         locations_ixs = act_descriptors[:, ActivityDescriptorProperties.location_ix].copy()
         locations_ixs[locations_ixs == 0] = [r.index for r in self.population.location[ids][locations_ixs == 0]]
-        location_occupation = np.array([r.population is not None and len(r.population) or 0
+        location_empty = np.array([r.population is not None and len(r.population) or 0
                                         for r in self.region_index[locations_ixs, 2]]) < 1
         wait_blocking = act_descriptors[:, ActivityDescriptorProperties.blocks_location] == TypesOfLocationBlocking.wait
-        can_block_do_to_wait = location_occupation & wait_blocking
+        can_block_do_to_wait = location_empty & wait_blocking
 
-        return ids[~wait_blocking | can_block_do_to_wait]
+        return ~wait_blocking | can_block_do_to_wait
 
     def register_location_activities(self):
         if self.relocator is not None:
@@ -410,31 +384,19 @@ class ActivityManager(Model):
                         activity = act_type(self.population)
                         self.register_activity(activity)
 
-    def register_activity_controller(self, controller: 'ActivityController',
-                                     registration_callback: Callable[['ActivityManager', 'World'], None],
-                                     activity=None):
-        self.controllers.append((controller, registration_callback, activity))
-
-    def add_location_activity_controller(self, region_ix, activity_id, controller):
-        self.__location_activity_controllers[(region_ix, activity_id)] = controller
-        self.location_activity_handler.register_handler_action(region_ix, controller.step_on_handler)
-
-    def has_location_controller(self, region_id, activity_id):
-        return (region_id, activity_id) in self.__location_activity_controllers
+    def register_activity_controller(self, controller: 'ActivityController', activity=None, z_order=-1):
+        if z_order < 0:
+            self.__controllers.append((controller, controller.registration_callback, activity))
+        else:
+            self.__controllers.insert(z_order, (controller, controller.registration_callback, activity))
 
     def __execute_controller_registration(self):
-        for controller, registration_callback, activity in self.controllers:
+        for controller, registration_callback, activity in self.__controllers:
             # Register a global activity controller
             if activity is not None:
                 self.activity_controllers[activity.id] = controller
                 return
 
+            self.controllers.append(controller)
+
             registration_callback(self, self.relocator.universe)
-
-    def process_handler_results(self, results):
-        for descriptors, idx in results:
-            if len(descriptors) == 0:
-                continue
-
-            self.stage_activity(descriptors, idx)
-

@@ -91,7 +91,7 @@ class TestActivityManager(I2MBTestCase):
         activity_manager.activity_list.activity_values[np.ix_([0, 1], [ActivityProperties.blocked_for], [1])] = 60
 
         activity_specs = ActivityDescriptorSpecs(act_idx=1, start=0, duration=50, location_ix=-1)
-        ids = [0, 1, 2, 3]
+        ids = np.array([0, 1, 2, 3])
         staged = activity_manager.stage_activity(activity_specs.specifications, ids)
         expected = [False, False, True, True]
 
@@ -100,11 +100,8 @@ class TestActivityManager(I2MBTestCase):
     def test_start(self):
         activity_list, test_pattern, population = self.init_population_list_and_test()
 
-        # Test that un-staged activities raise ValueError
-        self.assertRaises(ValueError, activity_list.start_activities, [5, 6])
-
         global_time.set_sim_time(5)
-        ids = [5, 6]
+        ids = np.array([5, 6])
         activity_specs = ActivityDescriptorSpecs(2, 0, 50, 0, 60, 0)
         activity_list.stage_activity(activity_specs.specifications, ids)
         activity_list.start_activities(ids)
@@ -131,7 +128,7 @@ class TestActivityManager(I2MBTestCase):
     def test_update_time(self):
         activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-        ids = [3, 5, 6]
+        ids = np.array([3, 5, 6])
         activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 60, 0)
         activity_manager.stage_activity(activity_specs.specifications, ids)
         activity_manager.start_activities(ids)
@@ -155,7 +152,7 @@ class TestActivityManager(I2MBTestCase):
     def test_stop_activities_with_duration(self):
         activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-        ids = [3, 5, 6]
+        ids = np.array([3, 5, 6])
         activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 0, 0)
         activity_manager.stage_activity(activity_specs.specifications, ids)
         activity_manager.start_activities(ids)
@@ -184,7 +181,7 @@ class TestActivityManager(I2MBTestCase):
     def test_stop(self):
         activity_manager, test_pattern, population = self.init_population_list_and_test()
 
-        ids = [3, 5, 6]
+        ids = np.array([3, 5, 6])
         activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 60, 0)
         activity_manager.stage_activity(activity_specs.specifications, ids)
         activity_manager.start_activities(ids)
@@ -227,7 +224,7 @@ class TestActivityManager(I2MBTestCase):
         activity_manager, _ = self.init_manager_and_test(relocator)
 
         # Test that the agents do not move
-        ids = [3, 5, 6]
+        ids = np.array([3, 5, 6])
         locations = self.population.location.copy()
         activity_specs = ActivityDescriptorSpecs(0, 0, 50, 0, 0, location_ix=0)
         activity_manager.stage_activity(activity_specs.specifications, ids)
@@ -302,7 +299,7 @@ class TestActivityManager(I2MBTestCase):
         activity_list, _ = self.init_manager_and_test(relocator)
         activity_descriptor = ActivityDescriptorSpecs(2)
         activity_list.stage_activity(activity_descriptor.specifications, [2])
-        activity_list.start_activities([2])
+        activity_list.start_activities(np.array([2]))
 
         # Run for a bit
         for i in range(5):
@@ -355,15 +352,15 @@ class TestActivityManager(I2MBTestCase):
 
         relocator.move_agents([1], location)
         activity_list.stage_activity(activity_descriptor.specifications, [2])
-        activity_list.start_activities([2])
+        # activity_list.start_activities(np.array([2]))
 
-        # Test the activity is still in the stage area
-        self.assertFalse((activity_list.current_descriptors[2] == -1).all())
-        relocator.move_agents([1], location.parent)
+        # Test the activity was rejected due to the blocking
+        self.assertTrue((activity_list.current_descriptors[2] == -1).all())
 
         # Move the agent out of the way
-        activity_list.start_activities([2])
-        self.assertTrue((activity_list.current_descriptors[2] == -1).all())
+        relocator.move_agents([1], location.parent)
+        activity_list.stage_activity(activity_descriptor.specifications, [2])
+        activity_list.start_activities(np.array([2]))
 
         # Test the activity is started
         self.assertTrue(activity_list.current_activity[2] == 2)
@@ -425,7 +422,7 @@ class TestActivityManager(I2MBTestCase):
         activity_descriptor.specifications[:, ActivityDescriptorProperties.duration] = durations
 
         activity_manager.stage_activity(activity_descriptor.specifications, [0, 1, 2, 3])
-        activity_manager.start_staged_activities()
+        activity_manager.start_activities(np.array([0, 1, 2, 3]))
 
         for i in range(30):
             global_time.set_sim_time(i)
@@ -467,28 +464,50 @@ class TestActivityManager(I2MBTestCase):
         # Current relocation test does this: ids[relocated_ids | ~update_current | same_location]
         self.fail("You need to implement this test")
 
-    def test_triggered_location_action(self):
+    # def test_triggered_location_action(self):
+    #     world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
+    #                          sim_duration=global_time.make_time(day=4), no_gui=True)
+    #
+    #     relocator = world.relocator
+    #     activity_manager, _ = self.init_manager_and_test(relocator)
+    #
+    #     called_action = [False]
+    #
+    #     def location_action(region):
+    #         called_action[0] = True
+    #         return [], []
+    #
+    #     activity_manager.location_activity_handler.register_handler_action(world.universe.regions[0].index,
+    #                                                                        location_action)
+    #
+    #     for i in range(5):
+    #         global_time.set_sim_time(i)
+    #         activity_manager.pre_step(i)
+    #         activity_manager.step(i)
+    #         activity_manager.post_step(i)
+    #         self.assertTrue(called_action[0], msg="Location action not called")
+
+    def test_do_not_disturb_activity_mode(self):
         world = WorldBuilder(Apartment, population=self.population, world_kwargs=dict(num_residents=6),
                              sim_duration=global_time.make_time(day=4), no_gui=True)
 
         relocator = world.relocator
         activity_manager, _ = self.init_manager_and_test(relocator)
 
-        called_action = [False]
+        activity_manager.current_activity_interruptable[:] = False
 
-        def location_action(region):
-            called_action[0] = True
-            return [], []
+        activity_descriptor = ActivityDescriptorSpecs(2, duration=10, location_ix=-1)
+        staged = activity_manager.stage_activity(activity_descriptor.specifications, [0, 1, 2, 3])
+        print(staged)
+        self.assertFalseAll(staged)
 
-        activity_manager.location_activity_handler.register_handler_action(world.universe.regions[0].index,
-                                                                           location_action)
+        self.assertEqualAll(activity_manager.current_descriptors, -1)
 
-        for i in range(5):
-            global_time.set_sim_time(i)
-            activity_manager.pre_step(i)
-            activity_manager.step(i)
-            activity_manager.post_step(i)
-            self.assertTrue(called_action[0], msg="Location action not called")
+
+
+
+
+
 
 
 

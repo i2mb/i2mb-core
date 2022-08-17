@@ -13,8 +13,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from logging import warn, warning
-from typing import Union, Protocol, Any
+from typing import Protocol, Any
 
 import numpy as np
 
@@ -282,14 +281,13 @@ class ActivityList:
 
 
 class ActivityController(Protocol):
-    def step_on_handler(self, region) -> (Any, Any):
+    z_order: int
+
+    def get_new_activity(self, ids) -> (Any, Any):
         ...
 
-    # def notify_location_changes(self, ids, locations):
-    #     ...
-
-    # def started_activities(self, ids):
-    #     ...
+    def has_new_activity(self, inactive_ids) -> np.ndarray:
+        ...
 
     def registration_callback(self, ids):
         ...

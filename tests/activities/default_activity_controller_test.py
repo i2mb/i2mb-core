@@ -31,9 +31,8 @@ class TestDefaultActivityController(I2MBTestCase):
 
         relocator = self.world.relocator
         self.activity_manager = ActivityManager(self.population, relocator=relocator)
-        self.default_activity_controller = DefaultActivityController(self.population, self.activity_manager)
-        self.activity_manager.register_activity_controller(self.default_activity_controller,
-                                                           self.default_activity_controller.registration_callback)
+        self.default_activity_controller = DefaultActivityController(self.population)
+        self.activity_manager.register_activity_controller(self.default_activity_controller)
         self.activity_manager.post_init()
         # self.register_available_location_activities()
 
@@ -64,7 +63,7 @@ class TestDefaultActivityController(I2MBTestCase):
             region_2.create_specs().specifications
 
     def test_default_activity_restart(self):
-        # Walk to stage deafult activity
+        # Walk to stage  default activity
         self.walk_modules(5)
         self.assertEqualAll(self.activity_manager.current_activity, 0)
         self.activity_manager.stop_activities(time(), self.population.index)
@@ -72,6 +71,7 @@ class TestDefaultActivityController(I2MBTestCase):
         descriptors[:, ActivityDescriptorProperties.location_ix] = 0
         self.activity_manager.stage_activity(descriptors,
                                              self.population.index)
+        self.activity_manager.start_activities(self.population.index)
         self.walk_modules(5)
         self.assertEqualAll(self.activity_manager.current_activity, Rest().activity_class.id,
                             msg=f"{self.activity_manager.current_activity}")

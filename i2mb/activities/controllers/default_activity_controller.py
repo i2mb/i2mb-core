@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from i2mb.activities import ActivityDescriptorProperties
 from i2mb.activities.base_activity import ActivityNone
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
@@ -10,10 +12,11 @@ if TYPE_CHECKING:
 
 
 class DefaultActivityController:
-    def __init__(self, population, activity_manager: 'ActivityManager'):
+    z_order = -1  # order of creation dictates importance
+
+    def __init__(self, population):
         super().__init__()
 
-        self.activity_manager = activity_manager
         self.population = population
 
         # Default activity can be changed during runtime
@@ -26,8 +29,7 @@ class DefaultActivityController:
         self.register_on_exit_action(activity_manager)
         for region in world.list_all_regions():
             if hasattr(region, "default_activity"):
-                key = (region.index, region.default_activity.activity_class.id)
-                activity_manager.add_location_activity_controller(*key, self)
+                activity_manager.activity_controllers[region.default_activity.activity_class.id] = self
 
     def register_enter_actions(self, activity_manager):
         relocator = activity_manager.relocator
@@ -47,9 +49,13 @@ class DefaultActivityController:
             self.cancel_default_activity_on_exit
         ])
 
-    def step_on_handler(self, region):
-        # Handle finished activities
-        return self.stage_default_activities(region)
+    @staticmethod
+    def has_new_activity(inactive_ids):
+        return inactive_ids
+
+    def get_new_activity(self, inactive_ids):
+        default_descriptor = self.current_default_activity_descriptor[inactive_ids, :]
+        return default_descriptor, np.ones_like(inactive_ids, dtype=bool)
 
     def stage_default_activities_on_entry(self, idx, region, arriving_from):
         if not hasattr(region, "default_activity"):
@@ -62,22 +68,6 @@ class DefaultActivityController:
         self.current_default_activity_descriptor[idx, ActivityDescriptorProperties.duration] = 0
         self.current_default_activity_descriptor[idx, ActivityDescriptorProperties.block_for] = 0
 
-        no_planned_activity = self.activity_manager.current_descriptors[idx, ActivityDescriptorProperties.act_idx] == -1
-        if no_planned_activity.any():
-            default_descriptor = self.current_default_activity_descriptor[idx, :][no_planned_activity]
-            self.activity_manager.stage_activity(default_descriptor, idx[no_planned_activity])
-
     def cancel_default_activity_on_exit(self, idx, region):
         self.current_default_activity_descriptor[idx, :] = ActivityDescriptorSpecs(ActivityNone.id,
                                                                                    size=len(idx)).specifications
-
-    def stage_default_activities(self, region):
-        inactive = self.activity_manager.current_activity == -1
-        inactive &= self.activity_manager.current_descriptors[:, ActivityDescriptorProperties.act_idx] == -1
-        inactive &= self.population.location == region
-        if inactive.any():
-            ids = self.population.index[inactive]
-            default_descriptor = self.current_default_activity_descriptor[ids, :]
-            return default_descriptor, ids
-
-        return [], []

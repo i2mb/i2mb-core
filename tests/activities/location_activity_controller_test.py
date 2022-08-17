@@ -34,7 +34,6 @@ class TestLocationActivityController(I2MBTestCase):
     def setup_engine(self, callbacks=None, no_gui=True, default=False, sleep=False, use_office=False):
         self.w = WorldBuilder(Apartment, world_kwargs=dict(num_residents=5), sim_duration=global_time.make_time(day=3),
                               update_callback=callbacks, no_gui=no_gui, use_office=use_office)
-        print(f"Running for {global_time.make_time(day=3)} ticks")
 
         self.population = self.w.population
         self.activity_manager = ActivityManager(self.w.population)
@@ -49,20 +48,18 @@ class TestLocationActivityController(I2MBTestCase):
 
         self.activity_manager = ActivityManager(self.w.population, self.w.relocator)
         self.sleep_model = SleepBehaviourController(self.w.population, self.activity_manager, sleep_duration, sleep_midpoint)
-        self.default_activity_controller = DefaultActivityController(self.population, self.activity_manager)
+        self.default_activity_controller = DefaultActivityController(self.population)
         self.location_manager = LocationActivitiesController(self.population)
 
         self.w.engine.models.extend([self.location_manager, self.activity_manager])
         if default:
-            self.activity_manager.register_activity_controller(self.default_activity_controller,
-                                                               self.default_activity_controller.registration_callback)
+            self.activity_manager.register_activity_controller(self.default_activity_controller)
 
         if sleep:
-            self.activity_manager.register_activity_controller(self.sleep_model, self.sleep_model.registration_callback)
+            self.activity_manager.register_activity_controller(self.sleep_model, z_order=0)
             self.w.engine.models.insert(0, self.sleep_model)
 
-        self.activity_manager.register_activity_controller(self.location_manager,
-                                                           self.location_manager.registration_callback)
+        self.activity_manager.register_activity_controller(self.location_manager)
 
         self.w.engine.post_init_modules()
         self.engine_iterator = self.w.engine.step()
@@ -178,28 +175,14 @@ class TestLocationActivityControllerGui(TestLocationActivityController):
 class TestLocationActivityControllerNoGui(TestLocationActivityController):
     def test_setup(self):
         self.setup_engine(sleep=True, default=True)
-        expected_controllers = self.activity_manager._ActivityManager__location_activity_controllers  # noqa
-        for r in self.w.universe.regions:
-            for act in r.available_activities:
-                key = (r.index, act.activity_class.id)
-                controller = expected_controllers[key]
-
-                if act.activity_class == Sleep:
-                    self.assertEqual(controller, self.sleep_model)
-
-                elif act.activity_class == Rest:
-                    self.assertEqual(controller, self.default_activity_controller)
-
-                else:
-                    self.assertEqual(controller, self.location_manager)
 
         for loc, activities in self.location_manager.location_activities_under_my_control.items():
             if isinstance(loc, Apartment):
                 self.assertGreater(len(activities), 0)
 
             for act in activities:
-                self.assertNotEqual(act, Sleep, msg="Sleep should not be in the controller list")
-                self.assertNotEqual(act, Rest, msg="Rest should not be in the controller list")
+                self.assertNotEqual(act.activity_class.id, Sleep.id, msg="Sleep should not be in the controller list")
+                self.assertNotEqual(act.activity_class.id, Rest.id, msg="Rest should not be in the controller list")
 
         self.assertGreater(len(self.location_manager.controlled_activities), 0,
                            msg=f"{self.location_manager.controlled_activities}")
@@ -227,12 +210,16 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
     def test_assign_activities(self):
         self.setup_engine()
 
+        self.location_manager.has_new_activity(self.population.index)
+        self.location_manager.update_activity_plan(0)
+
         # Agents start at home, so we can manually call the update to see next activity.
         for apartment in self.w.universe.regions[:2]:
-            descriptors, idx = self.location_manager.step_on_handler(apartment)
+            descriptors, idx = self.location_manager.get_new_activity(apartment.inhabitants.index)
             for act_id in descriptors[:, ActivityDescriptorProperties.act_idx]:
                 activity = self.activity_manager.activity_list.activities[act_id]
-                self.assertTrue(activity in self.location_manager.controlled_activities, msg=f"{act_id} {activity}")
+                self.assertTrue(activity in self.location_manager.controlled_activities,
+                                msg=f"{act_id} {activity} {self.location_manager.controlled_activities}")
 
         self.assertTrueAll(self.location_manager.has_plan)
 
@@ -249,3 +236,16 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
             self.assertTrue(activity in self.location_manager.controlled_activities, msg=f"{act_id} {activity}")
 
         self.assertTrueAll(self.location_manager.started)
+
+    def test_respect_sleep(self):
+        self.setup_engine(sleep=True, default=True, use_office=True)
+
+        self.walk_engine(1)
+        self.assertTrueAll(self.sleep_model.has_plan)
+        self.assertLessAll(self.sleep_model.sleep_profiles.specifications[:, ActivityDescriptorProperties.start], 0)
+        self.assertTrueAll(self.sleep_model.plan_dispatched)
+        self.assertEqualAll(self.activity_manager.current_activity, self.sleep_model.sleep_activity.id)
+        self.assertFalseAll(self.activity_manager.current_activity_interruptable)
+
+        self.walk_engine(1)
+        self.assertEqualAll(self.activity_manager.current_activity, self.sleep_model.sleep_activity.id)

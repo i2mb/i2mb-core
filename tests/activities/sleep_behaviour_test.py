@@ -51,7 +51,7 @@ class TestSleepBehaviour(I2MBTestCase):
         sleep_model = SleepBehaviourController(self.w.population, self.activity_manager,
                                                sleep_duration,
                                                sleep_midpoint)
-        self.activity_manager.register_activity_controller(sleep_model, sleep_model.registration_callback)
+        self.activity_manager.register_activity_controller(sleep_model)
         self.sleep_model = sleep_model
         self.w.engine.models.extend([sleep_model, self.activity_manager])
         self.w.engine.post_init_modules()

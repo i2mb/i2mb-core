@@ -11,7 +11,15 @@ class I2MBTestCase(TestCase):
 
     def assertTrueAll(self, test_value, msg=""):
         if not test_value.all():  # noqa
-            self.fail(f"Failed == .all() test: {test_value[:15]}\n{msg}")
+            self.fail(f"Failed (test_value).all() test: {test_value[:15]}\n{msg}")
+
+    def assertFalseAny(self, test_value, msg=""):
+        if not (~test_value).any():
+            self.fail(f"Failed (~test_value).any() test: {test_value[:15]}\n{msg}")
+
+    def assertFalseAll(self, test_value, msg=""):
+        if not (~test_value).all():  # noqa
+            self.fail(f"Failed (~test_value).all() test: {test_value[:15]}\n{msg}")
 
     def assertEqualAny(self, value, test_value, msg=""):
         if not (value == test_value).any():

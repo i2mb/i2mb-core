@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 class LocationActivitiesController(Model):
+    z_order = 0
+
     def __init__(self, population: AgentList, routine_schedules=None):
 
         super().__init__()
@@ -32,10 +34,15 @@ class LocationActivitiesController(Model):
         self.descriptor_index = np.full(len(population), -1, dtype=object)
         self.descriptor_index[:] = [[]]
 
+        # Planner
+        self.plan = ActivityDescriptorSpecs(size=len(population)).specifications
+
         # Track that the person has planned, started and finished an activity
         self.has_plan = np.zeros(len(self.population), dtype=bool)
         self.started = np.zeros(len(self.population), dtype=bool)
         self.finished = np.ones(len(self.population), dtype=bool)
+        self.update_activity = np.zeros(len(self.population), dtype=bool)
+        self.in_controlled_region = np.zeros(len(self.population), dtype=bool)
 
         # Routine Management
         self.routine_schedule = routine_schedules
@@ -52,22 +59,27 @@ class LocationActivitiesController(Model):
         self.register_on_activity_start()
         self.register_on_activity_stop()
 
-    def step_on_handler(self, region):
-        idx = region.population.index
-        update_activity = ~self.has_plan[idx]
-        update_activity |= ~self.started[idx]
-        update_activity &= self.finished[idx]
-        if update_activity.any():
-            descriptors = self.location_activities_under_my_control[region.index]
-            act_descriptors = np.random.choice(descriptors, update_activity.sum())
-            act_specs = ActivityDescriptorSpecs.merge_specs([desc.create_specs() for desc in act_descriptors])
-            self.has_plan[idx[update_activity]] = True
-            self.started[idx[update_activity]] = False
-            return act_specs.specifications, idx[update_activity]
+        regions = set(self.population.regions)
+        for region in regions:
+            self.notify_location_changes(region.population.index, region, [world] * len(region.population))
 
-        return [], []
+    def has_new_activity(self, inactive_ids):
+        self.update_activity = self.has_plan
+        self.update_activity &= ~self.started
+        self.update_activity &= self.finished
+        self.update_activity &= self.in_controlled_region
+        return self.update_activity
+
+    def get_new_activity(self, ids):
+        if self.update_activity.any():
+            act_specs = self.plan[ids, :]
+
+            return act_specs[self.update_activity[ids]], self.update_activity[ids]
+
+        return np.zeros_like(ids, dtype=object), np.zeros_like(ids, dtype=bool)
 
     def step(self, t):
+        self.update_activity_plan(t)
         self.update_routine_period(t)
 
     def load_default_routines(self):
@@ -109,6 +121,7 @@ class LocationActivitiesController(Model):
         return
 
     def stopped_activities(self, act_id, t, stop_selector):
+        self.started[stop_selector] = False
         self.finished[stop_selector] = True
 
     def started_activities(self, act_id, t, stop_selector):
@@ -117,19 +130,26 @@ class LocationActivitiesController(Model):
 
     def notify_location_changes(self, ids, new_location, arriving_from):
         notify = np.ones_like(ids, dtype=bool)
+
         if new_location.parent is not None:
             # Activities are defined at the parent level, update only people coming from outside the parent
             arriving_parent = np.array([loc.parent for loc in arriving_from])
             notify &= (arriving_parent != new_location.parent).ravel() # noqa
-
+            self.descriptor_index[ids[notify]] = [[]]
+            self.in_controlled_region[ids[notify]] = False
             if new_location.parent.index in self.location_activities_under_my_control:
                 location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
                 self.descriptor_index[ids[notify]] = [location_descriptors]
-                return
+                self.in_controlled_region[ids[notify]] = True
 
+            return
+
+        self.descriptor_index[ids[notify]] = [[]]
+        self.in_controlled_region[ids[notify]] = False
         if new_location.index in self.location_activities_under_my_control:
             location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
             self.descriptor_index[ids[notify]] = [location_descriptors]
+            self.in_controlled_region[ids[notify]] = True
 
     def register_exit_action(self):
         pass
@@ -158,15 +178,24 @@ class LocationActivitiesController(Model):
                 continue
 
             for act_descriptor in r.available_activities:
-                key = (r.index, act_descriptor.activity_class.id)
-                if activity_manager.has_location_controller(*key):
+                if act_descriptor.activity_class.id in activity_manager.activity_controllers:
                     continue
 
-                activity_manager.add_location_activity_controller(*key, self)
+                # activity_manager.add_location_activity_controller(*key, self)
                 self.location_activities_under_my_control.setdefault(r.index, []).append(act_descriptor)
                 activity = activity_manager.activity_list.activities[act_descriptor.activity_class.id]
                 self.controlled_activities.add(activity)
 
             processed_regions.add(r)
+
+    def update_activity_plan(self, t):
+        un_planned = ~self.has_plan
+        if un_planned.any():
+            new_plan = [len(descriptors) > 0 and np.random.choice(descriptors).create_specs() or ActivityDescriptorSpecs()
+                        for descriptors in self.descriptor_index[un_planned]]
+
+            self.plan[un_planned, :] = ActivityDescriptorSpecs.merge_specs(new_plan).specifications
+            self.has_plan[un_planned] = True
+
 
 
