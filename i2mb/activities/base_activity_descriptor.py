@@ -1,8 +1,10 @@
 from itertools import cycle
+from numbers import Number
 
 import numpy as np
 
 from i2mb.activities import ActivityProperties, ActivityDescriptorProperties
+from i2mb.utils.functions import callable_number
 
 
 class ActivityDescriptor:
@@ -20,12 +22,12 @@ class ActivityDescriptor:
         # Activity duration
         self.duration = duration
         if type(duration) is int:
-            self.duration = lambda: duration
+            self.duration = callable_number(duration)
 
         # Period of time for which to block an activity
         self.blocks_for = blocks_for
         if type(blocks_for) is int:
-            self.blocks_for = lambda: blocks_for
+            self.blocks_for = callable_number(blocks_for)
 
         # Device in location used during activity, e.g., bed
         self.device = device
@@ -55,8 +57,8 @@ class ActivityDescriptor:
 
     def create_specs(self, size=1):
         location_index = self.location is not None and self.location.index or 0
-        return ActivityDescriptorSpecs(act_idx=self.activity_class.id, duration=self.duration(),
-                                       block_for=self.blocks_for(),
+        return ActivityDescriptorSpecs(act_idx=self.activity_class.id, duration=self.duration(size),
+                                       block_for=self.blocks_for(size),
                                        location_ix=location_index,
                                        blocks_location=self.blocks_location,
                                        blocks_parent_location=self.blocks_parent,
@@ -82,6 +84,7 @@ class CompoundActivityDescriptor:
 class ActivityDescriptorSpecs:
     def __init__(self, act_idx=0, start=0, duration=0, priority_level=0, block_for=0, location_ix=0,
                  blocks_location=0, blocks_parent_location=0, descriptor_id=-1, interruptable=1, size=1):
+        self.size = size
         self.act_idx = self.align_variables(act_idx)
         self.start = self.align_variables(start)
         self.duration = self.align_variables(duration)
@@ -105,16 +108,13 @@ class ActivityDescriptorSpecs:
                                          self.interruptable,
                                          self.descriptor_id])
 
-        if size > 1:
-            if len(self.specifications) > 1:
-                raise RuntimeError("The length of specifications needs to be 1 for size to work.")
+    def align_variables(self, variable):
+        if isinstance(variable, Number):
+            if self.size == 1:
+                return np.array([variable], dtype=int).reshape(-1, 1)
 
-            self.specifications = np.tile(self.specifications, (size, 1))
-
-    @staticmethod
-    def align_variables(variable):
-        if type(variable) is int:
-            return np.array([variable]).reshape(-1, 1)
+            else:
+                return np.full((self.size, 1), variable)
 
         return np.array(variable).reshape(-1, 1)
 

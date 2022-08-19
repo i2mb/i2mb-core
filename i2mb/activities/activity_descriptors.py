@@ -20,6 +20,12 @@ class Work(ActivityDescriptor):
         self.activity_class = atomic_activities.Work
 
 
+class CoffeeBreak(ActivityDescriptor):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.activity_class = atomic_activities.CoffeeBreak
+
+
 class Eat(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

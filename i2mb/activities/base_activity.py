@@ -53,6 +53,7 @@ class ActivityPrimitive:
 
         self.__stop_callback = []
         self.__start_callback = []
+        self.__unblock_callback = []
 
     def get_start(self) -> np.ndarray:
         return self.__values[:, ActivityProperties.start]
@@ -128,6 +129,9 @@ class ActivityPrimitive:
     def register_start_callbacks(self, func):
         self.__start_callback.append(func)
 
+    def register_unblock_callbacks(self, func):
+        self.__unblock_callback.append(func)
+
     def __repr__(self):
         return f"Activity  {type(self)})"
 
@@ -138,6 +142,10 @@ class ActivityPrimitive:
     def run_start_callbacks(self, t, start_selector):
         for call_bak in self.__start_callback:
             call_bak(self.id, t, start_selector)
+
+    def run_unblock_callbacks(self, t, unblock_selector):
+        for call_bak in self.__unblock_callback:
+            call_bak(self.id, t, unblock_selector)
 
 
 class ActivityNone(ActivityPrimitive):

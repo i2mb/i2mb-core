@@ -63,7 +63,7 @@ class LivingRoom(BaseRoom):
         self.get_furniture_grid()
 
         self.local_activities.extend([
-            i2mb.activities.activity_descriptors.Rest(location=self, duration=45, blocks_for=1)
+            i2mb.activities.activity_descriptors.Rest(location=self)
             # i2mb.activities.activity_descriptors.Rest(location=self, device=s, duration=20) for s in
             # self.seats for p in range(s.num_seats)
         ])
@@ -82,7 +82,7 @@ class LivingRoom(BaseRoom):
 
         # sofa position
         width, height = self.dims
-        furniture = self.armchair + self.sofa
+        furniture = self.armchair + self.sofa  # noqa
         num_mid_sofas = len(furniture[2:])
         mid_height = max(num_mid_sofas * sofa_length + (num_mid_sofas - 1) * 0.2, sofa_length)
         sofa_angles = [0, 180]
@@ -117,9 +117,3 @@ class LivingRoom(BaseRoom):
 
     def stop_activity(self, idx, descriptor_ids):
         self.stand_up_particle(idx)
-
-    def step(self, t):
-        if not hasattr(self, "population"):
-            return
-        if not self.population:
-            return

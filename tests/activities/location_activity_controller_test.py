@@ -17,6 +17,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from i2mb.activities import ActivityDescriptorProperties
+from i2mb.activities.activity_descriptors import Toilet
 from i2mb.activities.atomic_activities import Sleep, Rest
 from i2mb.activities.controllers.default_activity_controller import DefaultActivityController
 from i2mb.activities.activity_manager import ActivityManager
@@ -52,12 +53,12 @@ class TestLocationActivityController(I2MBTestCase):
         self.location_manager = LocationActivitiesController(self.population)
 
         self.w.engine.models.extend([self.location_manager, self.activity_manager])
-        if default:
-            self.activity_manager.register_activity_controller(self.default_activity_controller)
-
         if sleep:
-            self.activity_manager.register_activity_controller(self.sleep_model, z_order=0)
+            self.activity_manager.register_activity_controller(self.sleep_model)
             self.w.engine.models.insert(0, self.sleep_model)
+
+        if default:
+            self.activity_manager.register_activity_controller(self.default_activity_controller, z_order=4)
 
         self.activity_manager.register_activity_controller(self.location_manager)
 
@@ -187,6 +188,11 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
         self.assertGreater(len(self.location_manager.controlled_activities), 0,
                            msg=f"{self.location_manager.controlled_activities}")
 
+        self.assertListEqual(self.activity_manager.controllers,
+                             [self.sleep_model,
+                              self.location_manager,
+                              self.default_activity_controller])
+
     def test_update_local_activities(self):
         self.setup_engine(sleep=True, default=True, use_office=True)
 
@@ -195,7 +201,8 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
 
         # check, no action for the controller
         expected = np.full(len(self.population), -1, dtype=object)
-        expected[:] = [[]]
+        coffee_break = self.w.universe.regions[2].available_activities[1]
+        expected[:] = [[coffee_break]]
         self.assertEqualAll(self.location_manager.descriptor_index, expected)
 
         # Move People Back Home
@@ -209,9 +216,10 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
 
     def test_assign_activities(self):
         self.setup_engine()
+        self.location_manager.start_delay = lambda x: np.full(x, 0, dtype=int)
 
-        self.location_manager.has_new_activity(self.population.index)
         self.location_manager.update_activity_plan(0)
+        self.location_manager.has_new_activity(self.population.index)
 
         # Agents start at home, so we can manually call the update to see next activity.
         for apartment in self.w.universe.regions[:2]:
@@ -225,6 +233,7 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
 
     def test_start_activities(self):
         self.setup_engine()
+        self.location_manager.start_delay = lambda x: np.full(x, 0, dtype=int)
 
         # Move a bit
         self.walk_engine(1)
@@ -249,3 +258,101 @@ class TestLocationActivityControllerNoGui(TestLocationActivityController):
 
         self.walk_engine(1)
         self.assertEqualAll(self.activity_manager.current_activity, self.sleep_model.sleep_activity.id)
+
+    def test_default_controller_integration(self):
+        self.setup_engine(sleep=False, default=True, use_office=True)
+
+        office = self.w.universe.regions[2]
+        work_descriptor = office.available_activities[0]
+        coffee_break_descriptor = office.available_activities[1]
+
+        self.location_manager.start_delay = lambda x: np.full(x, 0, dtype=int)
+
+        self.walk_engine(10)
+        self.w.relocator.move_agents(self.population.index, office)
+
+        self.walk_engine(1)
+
+        expected = [coffee_break_descriptor.activity_class.id] * len(self.population)
+        self.assertEqualAll(self.activity_manager.current_activity, expected,
+                            msg=f"{expected}, {self.activity_manager.current_activity}")
+
+        self.walk_engine(coffee_break_descriptor.duration())
+        expected = [work_descriptor.activity_class.id] * len(self.population)
+
+        for i in range(coffee_break_descriptor.blocks_for()):
+            self.assertEqualAll(self.activity_manager.current_activity, expected,
+                                msg=f"{i}, {expected}, {self.activity_manager.current_activity}")
+
+            self.walk_engine(1)
+
+        expected = [coffee_break_descriptor.activity_class.id] * len(self.population)
+        self.assertEqualAll(self.activity_manager.current_activity, expected,
+                            msg=f"{expected}, {self.activity_manager.current_activity}")
+
+        self.walk_engine(2)
+        expected = self.activity_manager.activity_list.get_in_progress(self.population.index,
+                                                                       work_descriptor.activity_class.id)
+        self.assertFalseAll(expected.astype(bool),
+                            msg=f"{expected}")
+
+        # Side effect moves agents home
+        self.w.assign_agents_to_worlds()
+        self.assertEqualAll(self.activity_manager.current_activity, -1,
+                            msg=f"{-1}, {self.activity_manager.current_activity}")
+
+        self.assertEqualAll(self.activity_manager.current_descriptors, -1,
+                            msg=f"{-1}, {self.activity_manager.current_descriptors}")
+
+    def test_controlled_activities_availability(self):
+        self.setup_engine(sleep=False, default=True, use_office=True)
+
+        activity_id = Toilet().activity_class.id
+        self.location_manager.plan[:] = Toilet(duration=3, blocks_for=60).create_specs().specifications
+        self.location_manager.has_plan[:] = True
+        for agent in self.population.index:
+            ids_under_control = [act.activity_class.id for act in self.location_manager.descriptor_index[agent]]
+            self.assertFalse(activity_id not in ids_under_control)
+
+        self.location_manager.started_activities(activity_id, 0, self.population.index)
+
+        for agent in self.population.index:
+            ids_under_control = [act.activity_class.id for act in self.location_manager.descriptor_index[agent]]
+            self.assertTrue(activity_id not in ids_under_control)
+
+        self.location_manager.unblocked_activities(activity_id, 0, self.population.index)
+        for agent in self.population.index:
+            ids_under_control = [act.activity_class.id for act in self.location_manager.descriptor_index[agent]]
+            self.assertFalse(activity_id not in ids_under_control)
+
+    def test_delay_start(self):
+        self.setup_engine(sleep=False, default=True, use_office=True)
+
+        office = self.w.universe.regions[2]
+        work_descriptor = office.available_activities[0]
+        coffee_break_descriptor = office.available_activities[1]
+        coffee_break = self.activity_manager.activity_list.activities[coffee_break_descriptor.activity_class.id]
+        self.w.relocator.move_agents(self.population.index, office)
+
+        self.location_manager.update_activity_plan(0)
+        plan = self.location_manager.plan.copy()
+        activity_started = np.full(len(self.population), -1)
+
+        def start_callback(act_id, t, start_selector):
+            if act_id == coffee_break_descriptor.activity_class.id:
+                activity_started[start_selector] = t
+
+        coffee_break.register_start_callbacks(start_callback)
+
+        for i in range(max(self.location_manager.plan[:, ActivityDescriptorProperties.start])+2):
+            print(self.location_manager.has_plan)
+            self.walk_engine(1)
+
+        self.assertEqualAll(plan[:, ActivityDescriptorProperties.start], activity_started,
+                            msg=f"{activity_started}, {plan[:, ActivityDescriptorProperties.start]}")
+
+
+
+
+
+

@@ -1,6 +1,10 @@
+from functools import partial
+
 import numpy as np
 
 import i2mb.activities.activity_descriptors
+from i2mb.utils import global_time
+from i2mb.utils.distributions import TemporalLinkedDistribution
 from i2mb.worlds.furniture.tables.dining import DiningTable
 from ._room import BaseRoom
 
@@ -28,15 +32,20 @@ class DiningRoom(BaseRoom):
         self.add_furniture([self.table])
         # self.get_furniture_grid()
 
+        on_distribution = partial(np.random.randint, 1, global_time.make_time(minutes=45))
+        tld = TemporalLinkedDistribution(on_distribution, global_time.make_time(minutes=30))
+
         self.local_activities.extend([
-            i2mb.activities.activity_descriptors.Eat(location=self, device=self.table, duration=9, blocks_for=1)])
+            i2mb.activities.activity_descriptors.Eat(location=self, device=self.table,
+                                                     duration=tld.sample_on,
+                                                     blocks_for=tld.sample_off)])
 
         # Manage sitting positions
         self.table_assignment = np.ones(len(self.table.get_sitting_positions())) *- 1
 
     def sit_agents(self, idx):
         required_seats = len(idx)
-        available_seats = (self.table_assignment.reshape(-1,1) == -1).any(axis=1)
+        available_seats = (self.table_assignment.reshape(-1, 1) == -1).any(axis=1)
         bool_idx = (self.population.index.reshape(-1, 1) == idx).any(axis=1)
         if available_seats.sum() > 0:
             if required_seats > available_seats.sum():

@@ -42,5 +42,5 @@ from ._composite_worlds.apartment_world import ApartmentWorld
 from ._composite_worlds.apartment_building_world import ApartmentBuildingWorld
 
 from ._composite_worlds.bus_station import BusStation
-
+from .office import Office
 

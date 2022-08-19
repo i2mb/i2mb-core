@@ -182,6 +182,14 @@ class ActivityManager(Model):
         mask &= self.activity_list.activity_values[:, in_progress_ix, :] == 0
         if mask.any():
             self.activity_list.activity_values[:, blocked_for_ix, :][mask] -= 1
+            unblock_activities = self.activity_list.activity_values[:, blocked_for_ix, :] == 0
+            unblock_activities &= mask
+            if unblock_activities.any():
+                for act_ix in range(unblock_activities.shape[-1]):
+                    activity = self.activity_list.activities[act_ix]
+                    activity_unblock = unblock_activities[:, act_ix].ravel()
+                    if activity_unblock.any():
+                        activity.run_unblock_callbacks(time(), activity_unblock)
 
     def stop_activities_with_duration(self, t):
         """Activities that have duration set to a number greater than 0 are in_progress for that length of time. Once
@@ -247,6 +255,9 @@ class ActivityManager(Model):
         # Remove cases where staged activity is the same as current activity.
         current_activities = self.current_activity[ids]
         new_activity = current_activities != activities
+
+        # Removed unused descriptors
+        self.current_descriptors[ids[~new_activity], :] = -1
         act_descriptors = act_descriptors[new_activity, :]
         activities = activities[new_activity]
         ids = ids[new_activity]
@@ -254,6 +265,7 @@ class ActivityManager(Model):
         if len(ids) == 0:
             return
 
+        self.stop_activities(time(), ids)
         self.__start_activities(act_descriptors, activities, ids)
 
     def collect_new_controller_descriptors(self, ids_selector):
@@ -384,11 +396,19 @@ class ActivityManager(Model):
                         activity = act_type(self.population)
                         self.register_activity(activity)
 
-    def register_activity_controller(self, controller: 'ActivityController', activity=None, z_order=-1):
-        if z_order < 0:
-            self.__controllers.append((controller, controller.registration_callback, activity))
+    def register_activity_controller(self, controller: 'ActivityController', activity=None, z_order=None):
+        self.__controllers.append((controller, controller.registration_callback, activity))
+        self.controllers.append(controller)
+        if z_order is None:
+            controller.z_order = len(self.__controllers)
+
         else:
-            self.__controllers.insert(z_order, (controller, controller.registration_callback, activity))
+            if z_order < 0:
+                z_order = len(self.__controllers) - z_order
+
+            controller.z_order = z_order
+
+        self.controllers = sorted(self.controllers, key=lambda x: x.z_order)
 
     def __execute_controller_registration(self):
         for controller, registration_callback, activity in self.__controllers:
@@ -396,7 +416,5 @@ class ActivityManager(Model):
             if activity is not None:
                 self.activity_controllers[activity.id] = controller
                 return
-
-            self.controllers.append(controller)
 
             registration_callback(self, self.relocator.universe)

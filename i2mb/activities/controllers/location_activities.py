@@ -1,23 +1,28 @@
+from functools import partial
 from typing import Union, TYPE_CHECKING
 
 import numpy as np
 
 from i2mb import Model
+from i2mb.activities import ActivityDescriptorProperties
 from i2mb.activities.activity_descriptors import Rest
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs, ActivityDescriptor
 from i2mb.engine.agents import AgentList
-from i2mb.utils import global_time
-
+from i2mb.utils import global_time, time
 
 if TYPE_CHECKING:
     from i2mb.worlds import World, CompositeWorld
     from i2mb.activities.activity_manager import ActivityManager
 
 
+def default_start_delay(size):
+    return np.random.randint(0, global_time.make_time(minutes=15), size=size)
+
+
 class LocationActivitiesController(Model):
     z_order = 0
 
-    def __init__(self, population: AgentList, routine_schedules=None):
+    def __init__(self, population: AgentList, routine_schedules=None, start_delay=None):
 
         super().__init__()
         self.population = population
@@ -31,11 +36,15 @@ class LocationActivitiesController(Model):
         self.controlled_activities_types = set()
 
         # Pointer to available activities
-        self.descriptor_index = np.full(len(population), -1, dtype=object)
+        self.descriptor_index = np.empty(len(population), dtype=object)
         self.descriptor_index[:] = [[]]
 
         # Planner
         self.plan = ActivityDescriptorSpecs(size=len(population)).specifications
+        if start_delay is None:
+            start_delay = default_start_delay
+
+        self.start_delay = start_delay
 
         # Track that the person has planned, started and finished an activity
         self.has_plan = np.zeros(len(self.population), dtype=bool)
@@ -58,13 +67,19 @@ class LocationActivitiesController(Model):
         self.__register_as_controller(activity_manager, world)
         self.register_on_activity_start()
         self.register_on_activity_stop()
+        self.register_on_activity_unblock()
 
         regions = set(self.population.regions)
         for region in regions:
             self.notify_location_changes(region.population.index, region, [world] * len(region.population))
 
     def has_new_activity(self, inactive_ids):
-        self.update_activity = self.has_plan
+        self.update_activity = self.has_plan.copy()
+        self.update_activity &= (self.plan[:, ActivityDescriptorProperties.start] <= time())
+        if ((self.plan[self.has_plan, ActivityDescriptorProperties.start] <= time())
+             & ~self.update_activity[self.has_plan]).any():
+            print(self.plan[self.has_plan, ActivityDescriptorProperties.start])
+
         self.update_activity &= ~self.started
         self.update_activity &= self.finished
         self.update_activity &= self.in_controlled_region
@@ -124,32 +139,60 @@ class LocationActivitiesController(Model):
         self.started[stop_selector] = False
         self.finished[stop_selector] = True
 
-    def started_activities(self, act_id, t, stop_selector):
-        self.started[stop_selector] = True
-        self.has_plan[stop_selector] = False
+    def started_activities(self, act_id, t, start_selector):
+        self.started[start_selector] = True
+        self.has_plan[start_selector] = False
+        act_specs = self.plan[start_selector]
+
+        blocking_activities = act_specs[:, ActivityDescriptorProperties.block_for] > 0
+        if blocking_activities.any():
+            for available_activities in self.descriptor_index[start_selector][blocking_activities]:
+                for ix in range(len(available_activities)):
+                    descriptor = available_activities[ix]
+                    if descriptor.activity_class.id == act_id:
+                        del available_activities[ix]
+                        break
+
+    def unblocked_activities(self, act_id, t, start_selector):
+        locations = self.population.location[start_selector]
+        idx = self.population.index[start_selector]
+        for location, agent in zip(locations, idx):
+            location_index = location.index
+
+            # use parent id
+            if location.parent is not None and location.parent.available_activities is location.available_activities:
+                location_index = location.parent.index
+
+            if location_index in self.location_activities_under_my_control and \
+                    act_id in [act.activity_class.id for act in self.location_activities_under_my_control[location_index]]:
+                self.descriptor_index[[agent]] = [self.location_activities_under_my_control[location_index][::]]
 
     def notify_location_changes(self, ids, new_location, arriving_from):
         notify = np.ones_like(ids, dtype=bool)
 
-        if new_location.parent is not None:
+        if new_location.parent is not None and new_location.parent.available_activities:
             # Activities are defined at the parent level, update only people coming from outside the parent
             arriving_parent = np.array([loc.parent for loc in arriving_from])
             notify &= (arriving_parent != new_location.parent).ravel() # noqa
-            self.descriptor_index[ids[notify]] = [[]]
-            self.in_controlled_region[ids[notify]] = False
+            self.reset_region_available_activities(ids[notify])
             if new_location.parent.index in self.location_activities_under_my_control:
                 location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
-                self.descriptor_index[ids[notify]] = [location_descriptors]
+                self.descriptor_index[ids[notify]] = [location_descriptors[::]]  # Each agent gets its own copy
                 self.in_controlled_region[ids[notify]] = True
 
             return
 
-        self.descriptor_index[ids[notify]] = [[]]
-        self.in_controlled_region[ids[notify]] = False
+        self.reset_region_available_activities(ids[notify])
         if new_location.index in self.location_activities_under_my_control:
-            location_descriptors = self.location_activities_under_my_control[new_location.parent.index]
-            self.descriptor_index[ids[notify]] = [location_descriptors]
+            location_descriptors = self.location_activities_under_my_control[new_location.index]
+            self.descriptor_index[ids[notify]] = [location_descriptors[::]]  # Each agent gets its own copy
             self.in_controlled_region[ids[notify]] = True
+
+    def reset_region_available_activities(self, ids):
+        self.plan[ids] = -1
+        self.descriptor_index[ids] = [[]]
+        self.has_plan[ids] = False
+        self.in_controlled_region[ids] = False
 
     def register_exit_action(self):
         pass
@@ -161,6 +204,10 @@ class LocationActivitiesController(Model):
     def register_on_activity_start(self):
         for activity in self.controlled_activities:
             activity.register_start_callbacks(self.started_activities)
+
+    def register_on_activity_unblock(self):
+        for activity in self.controlled_activities:
+            activity.register_unblock_callbacks(self.unblocked_activities)
 
     def register_enter_actions(self, activity_manager):
         relocator = activity_manager.relocator
@@ -190,11 +237,15 @@ class LocationActivitiesController(Model):
 
     def update_activity_plan(self, t):
         un_planned = ~self.has_plan
+        descriptors_available = np.array([len(ad) > 0 for ad in self.descriptor_index])
+        un_planned &= descriptors_available
         if un_planned.any():
-            new_plan = [len(descriptors) > 0 and np.random.choice(descriptors).create_specs() or ActivityDescriptorSpecs()
+            new_plan = [np.random.choice(descriptors).create_specs()
                         for descriptors in self.descriptor_index[un_planned]]
 
             self.plan[un_planned, :] = ActivityDescriptorSpecs.merge_specs(new_plan).specifications
+            delay = self.start_delay(un_planned.sum())
+            self.plan[un_planned, ActivityDescriptorProperties.start] = delay + t
             self.has_plan[un_planned] = True
 
 

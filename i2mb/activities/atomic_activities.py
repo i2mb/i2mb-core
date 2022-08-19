@@ -105,6 +105,10 @@ class Work(ActivityPrimitive):
         self.stationary = None
 
 
+class CoffeeBreak(ActivityPrimitive):
+    pass
+
+
 class Eat(ActivityPrimitive):
     pass
 
