@@ -152,9 +152,9 @@ class Schedule:
             if event.repeats == "monthly" or event.repeats is True:
                 self.repeats_monthly.append(event)
 
-        self.repeats_daily = sorted(self.repeats_daily, key=lambda x: x.start_time)
-        self.repeats_weekly = sorted(self.repeats_weekly, key=lambda x: x.start_time)
-        self.repeats_monthly = sorted(self.repeats_monthly, key=lambda x: x.start_time)
+        self.repeats_daily = sorted(self.repeats_daily, key=lambda x: x.start_time())
+        self.repeats_weekly = sorted(self.repeats_weekly, key=lambda x: x.start_time())
+        self.repeats_monthly = sorted(self.repeats_monthly, key=lambda x: x.start_time())
 
         self.__daily_cycle = cycle(self.repeats_daily)
         self.__weekly_cycle = cycle(self.repeats_weekly)
