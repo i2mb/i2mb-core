@@ -45,15 +45,11 @@ class SimulationTime:
 
     def day(self, v):
         """Day of the month"""
-        return (v % self.ticks_month) // self.ticks_day
+        return (v % self.ticks_month) // self.time_scalar
 
     def days(self, v):
         """Number of days elapsed since the beginning of the simulation."""
         return v // self.time_scalar
-
-    def day_of_week(self, v):
-        """Day of the week 0 -> Monday"""
-        return (v % self.ticks_week) // self.ticks_day
 
     def hour(self, v):
         """Hour of the day (24H)"""
@@ -64,10 +60,7 @@ class SimulationTime:
         return ((v % self.time_scalar) % self.ticks_hour) * 60 // self.ticks_hour
 
     def week_start(self, v):
-        return v // self.ticks_week * self.ticks_week
-
-    def is_weekend(self, v):
-        return (self.week_start(v) + 5 * self.ticks_day) < v
+        return v // self.ticks_week * self.time_scalar
 
     def month_start(self, v):
         return v // self.ticks_month * self.time_scalar

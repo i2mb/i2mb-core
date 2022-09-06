@@ -67,6 +67,20 @@ class Entry:
             offset = global_time.days(t) * global_time.time_scalar
             if self.start_time + offset < t:
                 offset += global_time.time_scalar
+        elif self.repeats == "on_weekdays":
+            offset = global_time.days(t) * global_time.time_scalar
+            if self.start_time + offset < t:
+                offset += global_time.time_scalar
+
+            if global_time.is_weekend(self.start_time + offset):
+                offset += 2*global_time.time_scalar
+        elif self.repeats == "on_weekends":
+            offset = global_time.days(t) * global_time.time_scalar
+            if self.start_time + offset < t:
+                offset += global_time.time_scalar
+
+            if global_time.is_weekend(self.start_time + offset):
+                offset += 5 * global_time.time_scalar
         elif self.repeats == "weekly":
             offset = global_time.week_start(t)
             if self.start_time + offset < t:
@@ -143,7 +157,10 @@ class Schedule:
             if not event.repeats:
                 self.unique_events.append(event)
 
-            if event.repeats == "daily" or event.repeats is True:
+            if (event.repeats == "daily" or
+                    event.repeats == "on_weekends" or
+                    event.repeats == "on_weekdays" or
+                    event.repeats is True):
                 self.repeats_daily.append(event)
 
             if event.repeats == "weekly":
