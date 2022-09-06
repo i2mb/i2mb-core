@@ -33,7 +33,7 @@ class DiningRoom(BaseRoom):
         # self.get_furniture_grid()
 
         on_distribution = partial(np.random.randint, 1, global_time.make_time(minutes=45))
-        tld = TemporalLinkedDistribution(on_distribution, global_time.make_time(minutes=30))
+        tld = TemporalLinkedDistribution(on_distribution, global_time.make_time(minutes=20))
 
         self.local_activities.extend([
             i2mb.activities.activity_descriptors.Eat(location=self, device=self.table,

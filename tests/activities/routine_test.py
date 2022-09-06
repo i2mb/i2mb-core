@@ -12,7 +12,7 @@ class RoutineTest(TestCase):
         self.population = AgentList(self.population_size)
         self.activity_list = ActivityManager(self.population)
 
-        activities = np.random.choice([Sleep, Work, Cook, Eat, Toilet, Shower, Sink], size=self.population_size)
+        activities = np.random.choice([Sleep, Work, KitchenWork, Eat, Toilet, Shower, Grooming], size=self.population_size)
         activities = [c(self.population) for c in activities]
         self.activities = activities
         for act in activities:

@@ -41,10 +41,10 @@ class Kitchen(BaseRoom):
         self.furniture_origins = np.empty((n, 2))
         self.get_furniture_grid(outline)
 
-        on_distribution = partial(np.random.randint, 1, global_time.make_time(minutes=45))
-        tld = TemporalLinkedDistribution(on_distribution, global_time.make_time(minutes=30))
+        on_distribution = partial(np.random.choice, np.arange(1, 5), p=[0.6, 0.25, 0.10, 0.05])
+        tld = TemporalLinkedDistribution(on_distribution, global_time.make_time(minutes=10))
         self.local_activities.extend([
-            i2mb.activities.activity_descriptors.Cook(
+            i2mb.activities.activity_descriptors.KitchenWork(
                 location=self,
                 duration=tld.sample_on,
                 blocks_for=tld.sample_off,

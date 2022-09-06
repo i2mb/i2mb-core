@@ -13,7 +13,7 @@ from i2mb.utils import global_time
 class TestActivityList(TestCase):
     def setUp(self) -> None:
         self.population_size = 10
-        self.activity_classes = [aa.Work, aa.Sink, aa.Shower, aa.Cook, aa.Rest]
+        self.activity_classes = [aa.Work, aa.Grooming, aa.Shower, aa.KitchenWork, aa.Rest]
         self.population = AgentList(self.population_size)
         global_time.set_sim_time(0)
 
@@ -30,7 +30,7 @@ class TestActivityList(TestCase):
 
     def test_activity_register(self):
         activity_list = ActivityList(self.population)
-        activity_classes = [aa.Work, aa.Sink, aa.Shower, aa.Cook, aa.Rest]
+        activity_classes = [aa.Work, aa.Grooming, aa.Shower, aa.KitchenWork, aa.Rest]
         activities = []
         for activity_cls in self.activity_classes:
             activity = activity_cls(self.population)

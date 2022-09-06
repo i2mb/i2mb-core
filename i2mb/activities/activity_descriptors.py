@@ -14,6 +14,12 @@ class CommuteBus(ActivityDescriptor):
         self.activity_class = atomic_activities.CommuteBus
 
 
+class CommuteCar(ActivityDescriptor):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.activity_class = atomic_activities.CommuteCar
+
+
 class Work(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -59,10 +65,10 @@ class Toilet(ActivityDescriptor):
         self.activity_class = atomic_activities.Toilet
 
 
-class Sink(ActivityDescriptor):
+class Grooming(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.activity_class = atomic_activities.Sink
+        self.activity_class = atomic_activities.Grooming
 
 
 class Shower(ActivityDescriptor):
@@ -71,7 +77,7 @@ class Shower(ActivityDescriptor):
         self.activity_class = atomic_activities.Shower
 
 
-class Cook(ActivityDescriptor):
+class KitchenWork(ActivityDescriptor):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.activity_class = atomic_activities.Cook
+        self.activity_class = atomic_activities.KitchenWork

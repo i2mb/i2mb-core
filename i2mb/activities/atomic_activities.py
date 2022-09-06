@@ -125,6 +125,10 @@ class CommuteBus(ActivityPrimitive):
     pass
 
 
+class CommuteCar(ActivityPrimitive):
+    pass
+
+
 class Rest(ActivityPrimitive):
     pass
 
@@ -133,7 +137,7 @@ class Toilet(ActivityPrimitive):
     pass
 
 
-class Sink(ActivityPrimitive):
+class Grooming(ActivityPrimitive):
     pass
 
 
@@ -141,5 +145,5 @@ class Shower(ActivityPrimitive):
     pass
 
 
-class Cook(ActivityPrimitive):
+class KitchenWork(ActivityPrimitive):
     pass

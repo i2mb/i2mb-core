@@ -43,23 +43,30 @@ class Bathroom(BaseRoom):
         self.furniture_upper = np.empty((len(self.furniture) - 1, 2))
         self.get_furniture_grid()
 
-        shower_on_distribution = partial(np.random.randint, 1, global_time.make_time(minutes=15))
+        shower_on_distribution = partial(np.random.choice, np.arange(1, 13),
+                                         p=[0.073, 0.146, 0.219, 0.195, 0.156, 0.104,
+                                            0.059, 0.029, 0.013, 0.005, 0.001, 0.])
         shower_tld = TemporalLinkedDistribution(shower_on_distribution, global_time.make_time(hour=6))
 
+        grooming_on_distribution = partial(np.random.choice, np.arange(1, 6), p=[0.25, 0.3, 0.25, 0.15, 0.05])
+        grooming_tld = TemporalLinkedDistribution(grooming_on_distribution, global_time.make_time(hour=6))
+
+        toilet_on_distribution = partial(np.random.choice, np.arange(1, 6), p=[0.6, 0.25, 0.10, 0.04, 0.01])
+        toilet_tld = TemporalLinkedDistribution(toilet_on_distribution, global_time.make_time(minutes=15))
 
         self.activities = [
             i2mb.activities.activity_descriptors.Toilet(location=self, device=self.toilet,
-                                                        duration=global_time.make_time(minutes=5),
+                                                        duration=toilet_tld.sample_on,
                                                         blocks_location=True,
-                                                        blocks_for=global_time.make_time(hour=1)
+                                                        blocks_for=toilet_tld.sample_off
                                                         ),
-            i2mb.activities.activity_descriptors.Sink(location=self, device=self.sink,
-                                                      duration=global_time.make_time(minutes=5),
-                                                      blocks_for=global_time.make_time(minutes=45)),
+            i2mb.activities.activity_descriptors.Grooming(location=self, device=self.sink,
+                                                          duration=grooming_on_distribution,
+                                                          blocks_for=global_time.make_time(hour=12)),
 
             i2mb.activities.activity_descriptors.Shower(location=self, device=self.bathtub,
-                                                        duration=shower_tld.sample_on,
-                                                        blocks_for=shower_tld.sample_off,
+                                                        duration=shower_on_distribution,
+                                                        blocks_for=global_time.make_time(hour=12),
                                                         blocks_location=True,
                                                         )]
 

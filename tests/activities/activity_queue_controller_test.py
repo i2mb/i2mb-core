@@ -20,7 +20,7 @@ global_time.ticks_hour = 12  # 5 minutes
 class TestActivityQueueController(TestCase):
     def setUp(self) -> None:
         self.population = AgentList(10)
-        self.activity_classes = [aa.Work, aa.Sink, aa.Shower, aa.Cook, aa.Rest]
+        self.activity_classes = [aa.Work, aa.Grooming, aa.Shower, aa.KitchenWork, aa.Rest]
         self.t = 0
         global_time.set_sim_time(self.t)
 
