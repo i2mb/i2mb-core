@@ -23,7 +23,7 @@ from matplotlib import pyplot as plt
 from i2mb.activities import ActivityDescriptorProperties
 from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.atomic_activities import Sleep
-from i2mb.activities.controllers.sleep import SleepBehaviourController
+from i2mb.activities.controllers.sleep_controller import SleepBehaviourController
 from i2mb.utils import global_time, time
 from i2mb.worlds import Apartment
 from tests.i2mb_test_case import I2MBTestCase

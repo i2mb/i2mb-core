@@ -105,8 +105,19 @@ class SleepBehaviourController(Model):
             self.activity_manager.stop_activities(t, self.population.index[sleep_walkers])
 
     def reset_sleep_on_stop(self, act_id, t, stop_selector):
+        interrupted = self.sleep_activity.get_elapsed() < self.sleep_activity.get_duration()
+        finished = ~interrupted[stop_selector]
+        not_finished = ~finished
+        if not_finished.any():
+            idx = self.population.index[stop_selector]
+            not_finished_idx = idx[not_finished]
+            duration = self.sleep_activity.get_duration()[not_finished_idx]
+            elapsed = self.sleep_activity.get_elapsed()[not_finished_idx]
+            self.sleep_profiles.specifications[not_finished_idx,
+                                               ActivityDescriptorProperties.duration] = duration - elapsed
+
         self.plan_dispatched[stop_selector] = False
-        self.has_plan[stop_selector] = False
+        self.has_plan[stop_selector] = not_finished
 
     def marked_dispatched_plans(self, act_id, t, stop_selector):
         self.plan_dispatched[stop_selector] = True
