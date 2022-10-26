@@ -1,8 +1,7 @@
-import random
-from ._room import BaseRoom
-from matplotlib.patches import Rectangle
 import numpy as np
 import numpy_indexed as npi
+
+from ._room import BaseRoom
 
 """
     :param public: marks floor as a public section
@@ -68,6 +67,6 @@ class Corridor(BaseRoom):
             living = self.__room_entries[self.__adjacent_rooms.index(id(self.population.home[0].living_room))]
             for i in self.population.bedroom[no_target]:
                 bedroom = self.__room_entries[self.__adjacent_rooms.index(id(i))]
-                idx = random.randint(0, 1)
+                idx = np.random.randint(0, 1)
                 entries = [living, bedroom]
                 self.population.target[no_target] = entries[idx]
