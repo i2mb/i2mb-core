@@ -148,6 +148,25 @@ class Scenario:
     def dynamic_regions(self) -> List[World]:
         pass
 
+    def compact_grid(self, grid):
+        row_origin = np.array([self.left, self.bottom])
+        for row in grid[::-1]:
+            column_origin = row_origin.copy()
+            row_top_right = np.array([0, 0])
+            for cell in row:
+                if not isinstance(cell, list):
+                    cell = [cell]
+
+                old_cell_origin = np.vstack([a.origin for a in cell]).min(axis=0).copy()
+                for area in cell:
+                    relative_origin = area.origin - old_cell_origin
+                    area.origin = column_origin + relative_origin
+                    row_top_right = np.vstack([row_top_right, area.origin + area.dims]).max(axis=0)
+
+                column_origin[0] = row_top_right[0] + self.v_space
+
+            row_origin[1] = row_top_right[1] + self.h_space
+
     def arrange_grid(self, grid, wrap_shape=None, offset=None):
         if offset is None:
             offset = [0, 0]
@@ -273,3 +292,12 @@ class BlankSpace(Area):
 
 class PublicSpace(World):
     pass
+
+
+def ravel_grids(grid):
+    for r in grid:
+        try:
+            iter(r)
+            yield from ravel_grids(r)
+        except TypeError:
+            yield r

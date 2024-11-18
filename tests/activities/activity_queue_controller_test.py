@@ -5,10 +5,11 @@ import numpy as np
 
 import i2mb.activities.atomic_activities as aa
 from i2mb.activities import ActivityProperties as AP, ActivityDescriptorProperties
-from i2mb.activities.controllers.activity_queues_controller import ActivityQueueController, \
-    enforce_unique_resource_utilization
+from i2mb.activities.activity_manager import ActivityManager
+from i2mb.activities.controllers.activity_queues_controller import enforce_unique_resource_utilization
 from i2mb.activities.base_activity import ActivityNone
 from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs
+from i2mb.activities.controllers.default_activity_controller import DefaultActivityController
 from i2mb.engine.agents import AgentList
 from i2mb.utils import global_time, time
 from i2mb.worlds import Apartment

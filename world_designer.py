@@ -13,7 +13,7 @@ from i2mb.engine.agents import AgentList
 if __name__ == "__main__":
     parser = ArgumentParser(description='Helps design new worlds.')
     parser.add_argument("--world", help="Specify the world's class name.")
-    module_name = "i2mb.worlds"
+    module_name = "i2mb-core.worlds"
 
     args = parser.parse_args()
     world_name = args.world

@@ -5,7 +5,7 @@ from i2mb.worlds.furniture.furniture_living.seats import Armchair
 from i2mb.worlds.furniture.furniture_living.seats import Sofa
 from ._room import BaseRoom
 
-# from i2mb.worlds.furniture.furniture_living.couch_table import CouchTable
+# from i2mb-core.worlds.furniture.furniture_living.couch_table import CouchTable
 
 """
     :param num_seats: Number of seats, values not between 1 and 6 will be ignored
@@ -64,7 +64,7 @@ class LivingRoom(BaseRoom):
 
         self.local_activities.extend([
             i2mb.activities.activity_descriptors.Rest(location=self)
-            # i2mb.activities.activity_descriptors.Rest(location=self, device=s, duration=20) for s in
+            # i2mb-core.activities.activity_descriptors.Rest(location=self, device=s, duration=20) for s in
             # self.seats for p in range(s.num_seats)
         ])
 

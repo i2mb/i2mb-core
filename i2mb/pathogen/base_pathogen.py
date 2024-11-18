@@ -62,7 +62,7 @@ class Pathogen(Model):
         self.infectious_duration_pso = np.zeros(shape)
         self.incubation_duration = np.zeros(shape)
         self.illness_duration = np.zeros(shape)
-        self.time_of_infection = np.zeros(shape)
+        self.time_of_infection = np.full(shape, -1, dtype=int)
         self.particles_infected = np.zeros(shape)
         self.outcomes = np.zeros(shape)
         self.particle_type = np.zeros(shape)

@@ -122,7 +122,7 @@ def update(frame):
 
     if frame % 100 == 0:
         print(covid.waves)
-        print(ct_intervention.num_isolations.ravel())
+        print(ct_intervention.num_confinements.ravel())
         print(ct_intervention.isolated_fp.ravel())
 
     return artists

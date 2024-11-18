@@ -38,7 +38,7 @@ class Bathtub(BaseFurniture):
             Arc(abs_origin + self.lead_center,
                 width - (2 * self.recess),
                 width - (2 * self.recess),
-                self.rotation, 0, 180, fill=False, linewidth=1.2,
+                angle=self.rotation, theta1=0, theta2=180, fill=False, linewidth=1.2,
                 edgecolor='gray', alpha=0.4))
 
         ax.add_patch(PathPatch(Path(abs_origin + self.inner_wall_points),

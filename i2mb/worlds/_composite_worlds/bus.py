@@ -3,6 +3,7 @@ from collections import deque
 import numpy as np
 from matplotlib import image as mpimage
 from matplotlib.axes import Axes
+from matplotlib.patches import Rectangle
 
 from i2mb import _assets_dir
 from i2mb.activities.activity_descriptors import CommuteBus
@@ -54,6 +55,10 @@ class BusMBCitaroK(CompositeWorld, PublicSpace):
             img = img.transpose(1, 0, 2)[::-1, :, :]
 
         ax.imshow(img, extent=extent.ravel())
+
+        border = kwargs.get("border", False)
+        if border:
+            ax.add_patch(Rectangle(origin, *self.dims, fill=False, linewidth=1.2, edgecolor='gray'))
 
     def available_places(self):
         return len(self.available_seats)

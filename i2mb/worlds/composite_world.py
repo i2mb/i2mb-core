@@ -209,7 +209,7 @@ class CompositeWorld(World):
         bbox = kwargs.get("bbox", False)
         self._draw_world(ax, origin=self.origin + origin, **kwargs)
         for region in self.regions:
-            region.draw_world(ax=ax, bbox=bbox, origin=self.origin + origin)
+            region.draw_world(ax=ax,  origin=self.origin + origin, **kwargs)
 
     def _draw_world(self, ax, bbox=False, origin=(0, 0), **kwargs):
         ax.add_patch(Rectangle(origin, *self.dims, fill=False, linewidth=1.2, edgecolor='gray'))

@@ -28,7 +28,7 @@ def recovery_function(t, time_exposed, exposure):
     t = 20 / global_time.time_scalar * (t - 0.55 * global_time.make_time(day=1))
 
     cdf = 1 - 1 / (1 + np.exp(-t))
-    return exposure * cdfclearance_duration
+    return exposure * cdf
 
 
 def get_symptom_levels_summary(population):

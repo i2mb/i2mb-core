@@ -4,7 +4,6 @@ from i2mb.utils.spatial_utils import distance, contacts_within_radius
 from i2mb.utils import cache_manager
 from .base_interaction import Interaction
 from .contact_list import ContactList
-from .contact_matrix import ContactMatrix
 
 
 class ContactTracing(Interaction):
@@ -67,7 +66,7 @@ class ContactTracing(Interaction):
         return distance(positions)
 
     def step(self, t):
-        """This method is called by the :class:`i2mb.engine.core.Engine` and represent an iteration step. THe engine provides the time
+        """This method is called by the :class:`i2mb-core.engine.core.Engine` and represent an iteration step. THe engine provides the time
          `t` of the simulation
 
          :param t: Simulation time, i.e., number of steps so far.
@@ -108,7 +107,7 @@ class ContactTracing(Interaction):
 
 class RegionContactTracing(ContactTracing):
     def step(self, t):
-        """This method is called by the :class:`i2mb.engine.core.Engine` and represent an iteration step. The engine
+        """This method is called by the :class:`i2mb-core.engine.core.Engine` and represent an iteration step. The engine
         provides the time `t` of the simulation
 
          :param t: Simulation time, i.e., number of steps so far.

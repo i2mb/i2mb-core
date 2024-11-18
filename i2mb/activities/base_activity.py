@@ -1,4 +1,4 @@
-#  i2mb
+#  i2mb-core
 #  Copyright (C) 2021  FAU - RKI
 #
 #  This program is free software: you can redistribute it and/or modify

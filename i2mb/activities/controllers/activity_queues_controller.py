@@ -4,7 +4,8 @@ from i2mb import Model
 from i2mb.activities import ActivityDescriptorProperties, ActivityProperties
 from i2mb.activities.activity_manager import ActivityManager
 from i2mb.activities.base_activity import ActivityNone
-from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs, ActivityDescriptorQueue
+from i2mb.activities.base_activity_descriptor import ActivityDescriptorSpecs, ActivityDescriptorQueue, \
+    convert_activities_to_descriptors
 from i2mb.engine.relocator import Relocator
 
 

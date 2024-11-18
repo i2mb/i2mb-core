@@ -31,5 +31,5 @@ class Door(BaseFurniture):
 
         ax.add_patch(PathPatch(Path([abs_origin, offset + abs_origin]), fill=False, linewidth=1.2,
                                edgecolor='gray'))
-        ax.add_patch(Arc(abs_origin, 2 * self.door_width, 2 * self.door_width, 0, (self.rotation + 90),
-                         (self.rotation + 135), fill=False, linewidth=0.6, edgecolor='gray'))
+        ax.add_patch(Arc(abs_origin, 2 * self.door_width, 2 * self.door_width, angle=0, theta1=(self.rotation + 90),
+                         theta2=(self.rotation + 135), fill=False, linewidth=0.6, edgecolor='gray'))

@@ -40,7 +40,7 @@ def get_number_of_isolated_agents(population):
 
 
 def get_total_number_of_isolations(population):
-    return population.num_isolations.sum()
+    return population.num_confinements.sum()
 
 
 def get_population_state_summary(population, user_states):

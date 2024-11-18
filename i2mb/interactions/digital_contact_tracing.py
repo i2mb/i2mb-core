@@ -81,7 +81,7 @@ class ContactTracing(Interaction):
         return distance(positions)
 
     def step(self, t):
-        """This method is called by the :class:`i2mb.engine.core.Engine` and represent an iteration step. THe engine provides the time
+        """This method is called by the :class:`i2mb-core.engine.core.Engine` and represent an iteration step. THe engine provides the time
          `t` of the simulation
 
          :param t: Simulation time, i.e., number of steps so far.
@@ -125,7 +125,7 @@ class ContactTracing(Interaction):
 
 class RegionContactTracing(ContactTracing):
     def step(self, t):
-        """This method is called by the :class:`i2mb.engine.core.Engine` and represent an iteration step. The
+        """This method is called by the :class:`i2mb-core.engine.core.Engine` and represent an iteration step. The
         engine provides the time `t` of the simulation
 
          :param t: Simulation time, i.e., number of steps so far.
@@ -144,7 +144,8 @@ class RegionContactTracing(ContactTracing):
             # Skip filtering  contacts when coverage is 100%
             if self.coverage < 1.:
                 # Select only contacts where both ids have digital coverage.
-                selector = self.covered[region_contacts.ravel()].reshape((-1, 2)).all(axis=1)
+                selector = self.covered[region_contacts[:, 0].ravel()]
+                selector &= self.covered[region_contacts[:, 1].ravel()]
                 region_contacts = region_contacts[selector, :]
 
             for id_a, id_b in region_contacts:

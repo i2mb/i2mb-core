@@ -16,7 +16,7 @@ class ContactIsolationIntervention(Intervention):
         self.isolated = np.zeros((len(population), 1), dtype=bool)
 
         # Number of times an agent was isolated
-        self.num_isolations = np.zeros((len(population), 1), dtype=int)
+        self.num_confinements = np.zeros((len(population), 1), dtype=int)
 
         # Requests to isolate and release agents
         self.isolation_request = np.zeros((len(population), 1), dtype=bool)
@@ -29,16 +29,19 @@ class ContactIsolationIntervention(Intervention):
         self.__requesters = {}
         self.isolated_by = np.zeros((len(population), 1), dtype=int)
 
-        # We keep track of isolation of non infectious agents
+        # We keep track of isolation of non-infectious agents
         self.isolated_fp = np.zeros((len(population), 1), dtype=int)
+        self.isolated_fn = np.zeros((len(population), 1), dtype=bool)
         self.isolation_time = np.zeros((len(population), 1), dtype=int)
         self.time_in_isolation = np.zeros((len(population), 1), dtype=int)
+        self.time_in_confinement = np.zeros((len(population), 1), dtype=int)
+        self.time_in_quarantine = np.zeros((len(population), 1), dtype=int)
         population.add_property("isolated", self.isolated)
         population.add_property("isolated_by", self.isolated_by)
         population.add_property("isolation_time", self.isolation_time)
         population.add_property("time_in_isolation", self.time_in_isolation)
         population.add_property("isolated_fp", self.isolated_fp)
-        population.add_property("num_isolations", self.num_isolations)
+        population.add_property("num_confinements", self.num_confinements)
         population.add_property("isolation_request", self.isolation_request)
         population.add_property("leave_request", self.leave_request)
 
@@ -68,7 +71,13 @@ class ContactIsolationIntervention(Intervention):
         self.isolated[~alive] = False
         self.isolated_by[~alive] = 0
 
-        self.time_in_isolation[self.isolated.ravel()] += 1
+        self.update_false_negatives(t)
+
+        # Updates times
+        self.time_in_confinement[self.isolated.ravel()] += 1
+        active = (self.population.state.ravel() > UserStates.exposed)
+        self.time_in_quarantine[self.isolated.ravel() & ~active] += 1
+        self.time_in_isolation[self.isolated.ravel() & active] += 1
         new_isolated = self.isolation_request & ~self.isolated & alive
         self.isolation_request[:] = False
 
@@ -83,15 +92,16 @@ class ContactIsolationIntervention(Intervention):
                 new_isolated |= lockdown
 
             # Compute stats
-            fp = new_isolated & ~self.isolated & ~((self.population.state == UserStates.infectious) |
-                                                   (self.population.state == UserStates.infected))
-            self.isolated_fp[fp.ravel(), 0] += 1
-            self.num_isolations[new_isolated.ravel(), 0] += ~self.isolated[new_isolated.ravel(), 0]
+            fp = new_isolated.ravel() & ~active
+            fn = new_isolated.ravel() & active
+            self.isolated_fp[fp, 0] += 1
+            self.isolated_fn[fn, 0] = False
+            self.num_confinements[new_isolated.ravel(), 0] += 1
             self.isolated[new_isolated.ravel(), 0] = True
             self.isolation_time[new_isolated.ravel(), 0] = t
 
             for idx in self.population.index[new_isolated.ravel()]:
-                self.q_history.setdefault(idx, []).append([self.isolated_by[idx], t, None])
+                self.q_history.setdefault(idx, []).append([self.isolated_by[idx, 0], t, None])
 
             regions = self.world.containment_region
             new_isolated = new_isolated.ravel() & (regions != self.population.location)
@@ -112,3 +122,10 @@ class ContactIsolationIntervention(Intervention):
                 self.relocator.move_agents((regions == r) & recovered_ids, r)
 
             self.leave_request[:] = False
+
+    def update_false_negatives(self, t):
+        # Everyone is a false negative until isolated. This is needed for real time calculations.
+        # File calculations of false negatives uses other method.
+        newly_infected = self.population.time_of_infection == t
+        if newly_infected.any():
+            self.isolated_fn[newly_infected] = True

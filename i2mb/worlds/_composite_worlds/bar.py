@@ -92,7 +92,7 @@ class Bar(CompositeWorld, PublicSpace):
         CompositeWorld.origin.fset(self, value)
         self.arrange_tables()
 
-    def _draw_world(self, ax, bbox=False, origin=(0., 0.)):
+    def _draw_world(self, ax, bbox=False, origin=(0., 0.), **kwargs):
         ax.add_patch(Rectangle(self.origin, *self.dims, fill=False, linewidth=1.2, edgecolor='gray'))
         self.bar.draw(ax, bbox)
         for table in self.lower_tables:
